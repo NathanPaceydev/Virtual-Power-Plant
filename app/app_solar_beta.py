@@ -36,7 +36,6 @@ def get_solar_data():
         "dataset": "nsrdb",
         "tilt": tilt,
         "address": address,
-        "soiling": "12|4|45|23|9|99|67|12.54|54|9|0|7.6",
         "albedo": 0.3,
         "bifaciality": 0.7
     }
