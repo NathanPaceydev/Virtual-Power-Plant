@@ -5,6 +5,29 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 
+
+def setup_solar_tab(notebook):
+    global plot_canvas_frame  # Declare as global if you need to access it outside this function
+    
+    solar_tab = ttk.Frame(notebook)
+    notebook.add(solar_tab, text='Solar')
+
+    # Create a Canvas within the solar tab for scrollability
+    plot_canvas = tk.Canvas(solar_tab)
+    plot_scrollbar = ttk.Scrollbar(solar_tab, orient="vertical", command=plot_canvas.yview)
+    plot_canvas.configure(yscrollcommand=plot_scrollbar.set)
+
+    plot_scrollbar.pack(side=tk.RIGHT, fill="y")
+    plot_canvas.pack(side=tk.LEFT, fill="both", expand=True)
+
+    # Frame within the Canvas to hold plots
+    plot_canvas_frame = ttk.Frame(plot_canvas)  # This is the correct initialization
+    canvas_window = plot_canvas.create_window((0, 0), window=plot_canvas_frame, anchor='nw')
+
+    plot_canvas_frame.bind("<Configure>", lambda event, canvas=plot_canvas: canvas.configure(scrollregion=plot_canvas.bbox("all")))
+
+
+
 def get_input_data():
     # Get the inputs from the GUI
     surface_area = float(surface_area_entry.get())
@@ -110,6 +133,9 @@ def get_input_data():
         canvas = FigureCanvasTkAgg(fig, master=plot_canvas_frame)
         canvas.draw()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        
+        # Update the scroll region to encompass the plot_frame
+        plot_canvas_frame.configure(scrollregion=plot_canvas_frame.bbox("all"))
 
     else:
         print(f"Error: {response.status_code}")
@@ -174,12 +200,10 @@ calculate_button.grid(row=6, column=0, columnspan=2, pady=10)
 
 
 # Solar panel tab for plots
-solar_tab = ttk.Frame(notebook)
-notebook.add(solar_tab, text='Solar')
-
 # Setup a canvas frame inside solar_tab for plots
-plot_canvas_frame = tk.Frame(solar_tab)
-plot_canvas_frame.pack(fill=tk.BOTH, expand=True)
+setup_solar_tab(notebook)  # Call the setup function for the solar tab
+
+
 
 # Other tabs...
 battery_tab = ttk.Frame(notebook)
