@@ -10,6 +10,7 @@ from scipy.stats import linregress
 plot_canvas = None
 solar_tab = None
 
+
 def setup_solar_tab(notebook):
     global plot_canvas_frame, plot_canvas, solar_tab  # Declare as global if you need to access it outside this function
 
