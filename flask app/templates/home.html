@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Home Page{% endblock %}
+
+{% block content %}
+    <h1>Welcome to the Home Page</h1>
+
+    <form method="post">
+
+        <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
+        <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
+
+        <label for="postalCode">Postal Code:</label>
+        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
+
+        <label for="arrayType">Array Type:</label>
+        <select id="arrayType" name="arrayType">
+            <option value=0>Fixed Open Rack</option>
+            <option value=1>Fixed - Roof Mounted</option>
+            <option value=2>1-Axis Tracking</option>
+            <option value=3>1-Axis Backtracking</option>
+            <option value=4>2-Axis</option>
+        </select><br><br>
+
+        <label for="moduleType">Module Type:</label>
+        <select id="moduleType" name="moduleType">
+            <option value=1>Standard</option>
+            <option value=2>Premium</option>
+            <option value=3>Thin Film</option>
+        </select><br><br>
+
+        <label for="tilt">Tilt (0 to 90 degrees):</label>
+        <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
+        <output>45</output><br><br>
+
+        <input type="submit" value="Submit">
+    </form>
+{% endblock %}
+

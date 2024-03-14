@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Solar Data{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between;">
+    <!-- Solar Input Data Column -->
+    <div style="width: 48%;">
+        <h1>Solar Input Data</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Surface Area (m<sup>2</sup>)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ surface_area }}</td>
+            </tr>
+            <tr style="background-color: #f2f2f2;">
+                <td style="border: 1px solid #ddd; padding: 8px;">Postal Code</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ postal_code }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Array Type</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ array_type }}</td>
+            </tr>
+            <tr style="background-color: #f2f2f2;">
+                <td style="border: 1px solid #ddd; padding: 8px;">Module Type</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ module_type }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Tilt (degrees)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ tilt }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Solar System Outputs Column -->
+    <div style="width: 48%;">
+        <h1>Solar System Outputs</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <!-- Example output row -->
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ system_capacity }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Total Yearly DC (kWh)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_dc_yearly | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Total Yearly AC (kWh)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_ac_yearly | round(2) }}</td>
+            </tr>
+            
+        </table>
+    </div>
+</div>
+    <br>
+
+    <h1>Solar Energy Insights</h1>
+    
+    <div>{{ plot1|safe }}</div>
+    <div>{{ plot2|safe }}</div>
+    <div>{{ plot3|safe }}</div>
+    <div>{{ plot4|safe }}</div>
+    <div>{{ plot5|safe }}</div>
+
+    
+    <a href="{{ url_for('download_csv') }}" class="btn btn-primary">Download Data as CSV</a>
+
+
+{% endblock %}
