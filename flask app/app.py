@@ -1,5 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, session, Response
 import requests
+import openmeteo_requests
+from scipy.optimize import curve_fit
+import matplotlib.dates as mdates
+import calendar
+import requests_cache
+from retry_requests import retry
+import pandas as pd
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +14,9 @@ import plotly.express as px
 import plotly.io as pio
 pio.templates.default = "none"
 import csv
+
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 
 app = Flask(__name__)
 
@@ -87,6 +97,14 @@ def solar():
         dc_monthly = data["outputs"]["dc_monthly"]
         temp_cell_monthly = data["outputs"]["tcell"]
         temp_ambient_monthly = data["outputs"]["tamb"]
+        station_info = data['station_info']
+        
+        latitude = station_info["lat"]
+        longitude = station_info["lon"]
+        
+        session['latitude'] = latitude
+        session['longitude'] = longitude
+        session['postal_code'] = postal_code
 
         total_dc_yearly = np.sum(dc_monthly) #[kWh DC]
         total_ac_yearly = np.sum(ac_monthly) #[kWh AC]
@@ -131,6 +149,127 @@ def solar():
 @app.route('/contact')
 def contact():
     return render_template('contact.html')
+
+@app.route('/wind')
+def wind():
+    # Retrieve latitude and longitude from session
+    latitude = session.get('latitude', 'Not provided')
+    longitude = session.get('longitude', 'Not provided')
+    postal_code = session.get('postal_code', 'Not provided')
+        
+        
+    # Setup the Open-Meteo API client with cache and retry on error
+    cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
+    retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
+    openmeteo = openmeteo_requests.Client(session = retry_session)
+
+    
+    # The order of variables in hourly or daily is important to assign them correctly below
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": "2022-01-01",
+        "end_date": "2022-12-31",
+        "hourly": ["temperature_2m", "relative_humidity_2m", "surface_pressure", "wind_speed_10m", "wind_speed_100m", "wind_direction_10m", "wind_direction_100m"]
+    }
+    responses = openmeteo.weather_api(url, params=params)
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+   
+
+    # Process hourly data. The order of variables needs to be the same as requested.
+    hourly = response.Hourly()
+    hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
+    hourly_relative_humidity_2m = hourly.Variables(1).ValuesAsNumpy()
+    hourly_surface_pressure = hourly.Variables(2).ValuesAsNumpy()
+    hourly_wind_speed_10m = hourly.Variables(3).ValuesAsNumpy()
+    hourly_wind_speed_100m = hourly.Variables(4).ValuesAsNumpy()
+    hourly_wind_direction_10m = hourly.Variables(5).ValuesAsNumpy()
+    hourly_wind_direction_100m = hourly.Variables(6).ValuesAsNumpy()
+    
+    hourly_data = {
+        "date": pd.date_range(
+            start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+            end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True) - pd.Timedelta(seconds=1),  # Adjust end time
+            freq=pd.Timedelta(seconds=hourly.Interval())
+        )
+    }
+
+    hourly_data["temperature_2m"] = hourly_temperature_2m
+    hourly_data["relative_humidity_2m"] = hourly_relative_humidity_2m
+    hourly_data["surface_pressure"] = hourly_surface_pressure
+    hourly_data["wind_speed_10m"] = hourly_wind_speed_10m
+    hourly_data["wind_speed_100m"] = hourly_wind_speed_100m
+    hourly_data["wind_direction_10m"] = hourly_wind_direction_10m
+    hourly_data["wind_direction_100m"] = hourly_wind_direction_100m
+
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    
+    
+    # Convert wind speeds from km/h to m/s
+    hourly_data["wind_speed_10m"] = hourly_data["wind_speed_10m"] / 3.6
+    hourly_data["wind_speed_100m"] = hourly_data["wind_speed_100m"] / 3.6
+
+    # Add the converted wind speeds to the DataFrame
+    hourly_dataframe = pd.DataFrame(data=hourly_data)
+
+    # Convert 'date' to a datetime index in the DataFrame
+    hourly_dataframe.set_index('date', inplace=True)
+
+    # Extract month from the index (date)
+    hourly_dataframe['month'] = hourly_dataframe.index.month
+
+    # Group by month and calculate the mean wind speed for plotting
+    monthly_wind_speed_10m = hourly_dataframe.groupby('month')['wind_speed_10m'].mean()
+    monthly_wind_speed_100m = hourly_dataframe.groupby('month')['wind_speed_100m'].mean()
+    
+    
+    # Create a new DataFrame for Plotly
+    monthly_wind_speed_df = pd.DataFrame({
+        'Month': monthly_wind_speed_10m.index,
+        'Wind Speed at 10m (m/s)': monthly_wind_speed_10m.values,
+        'Wind Speed at 100m (m/s)': monthly_wind_speed_100m.values
+    })
+
+    # Plotting with Plotly Express
+    fig1 = px.line(monthly_wind_speed_df, x='Month', y=['Wind Speed at 10m (m/s)', 'Wind Speed at 100m (m/s)'],
+                  labels={'value': 'Wind Speed (m/s)', 'variable': 'Measurement'}, title='Monthly Average Wind Speeds')
+
+    # Heights and average wind speeds for curve fitting
+    heights = np.array([10, 100])  # Heights in meters
+    average_wind_speeds = np.array([
+        monthly_wind_speed_10m.mean(),
+        monthly_wind_speed_100m.mean()
+    ])
+
+    # Define the logarithmic wind profile function
+    def log_wind_profile(z, a, b):
+        return a + b * np.log(z)
+
+    # Perform curve fitting
+    try:
+        popt, pcov = curve_fit(log_wind_profile, heights, average_wind_speeds)
+        
+        # Generate heights for the fitted curve visualization
+        fitted_heights = np.linspace(10, 100, 100)  # From 10m to 100m
+        fitted_speeds = log_wind_profile(fitted_heights, *popt)
+
+        # Create Plotly figure for the fitted curve and original data
+        fig2 = px.scatter(x=heights, y=average_wind_speeds, labels={'x': 'Height (m)', 'y': 'Wind Speed (m/s)'}, title='Wind Speed vs. Height with Logarithmic Fit')
+        fig2.add_scatter(x=fitted_heights, y=fitted_speeds, mode='lines', name=f'Fitted: v = {popt[0]:.2f} + {popt[1]:.2f} * ln(z)')
+        
+    except Exception as e:
+        print("An error occurred during curve fitting:", e)
+        fig2 = None
+    
+    # Convert Plotly figures to HTML
+    plot1 = fig1.to_html(full_html=False) if 'fig1' in locals() else None
+    plot2 = fig2.to_html(full_html=False) if fig2 else None
+
+    # Pass the plot to the template
+    return render_template('wind.html', plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
 
 
 @app.route('/download-csv')

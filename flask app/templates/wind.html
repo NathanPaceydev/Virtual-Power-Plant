@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Wind Data{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between;">
+
+    <!-- Solar Input Data Column -->
+    <div style="width: 48%;">
+        <h1>Wind Input Data</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+        
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Postal Code</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ postal_code }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Latitude</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ latitude | round(4) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Longitude</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ longitude | round(4) }}</td>
+            </tr>
+            
+        </table>
+    </div>
+
+    <!-- Solar System Outputs Column -->
+    <div style="width: 48%;">
+        <h1>Wind System Outputs</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <!-- Example output row -->
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">100343.00</td>
+            </tr>
+            
+            
+        </table>
+    </div>
+</div>    
+<br>
+
+<h1>Wind Energy Insights</h1>
+
+<div>{{ plot1|safe }}</div>
+<div>{{ plot2|safe }}</div>
+<br>
+<h1>Monthly Wind Speeds</h1>
+   
+
+
+
+{% endblock %}
+
