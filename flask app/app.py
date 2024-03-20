@@ -26,19 +26,23 @@ app.secret_key = 'your_secret_key_here'
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
-        # Store form data in session
+        # Store existing form data in session
         session['surface_area'] = request.form.get('surfaceArea')
         session['postal_code'] = request.form.get('postalCode')
         session['array_type'] = request.form.get('arrayType')
         session['module_type'] = request.form.get('moduleType')
         session['tilt'] = request.form.get('tilt')
 
+        # Store the new input for the number of wind turbines
+        session['num_turbines'] = request.form.get('numTurbines', type=int)  # Default to integer type
+
         # Redirect to the solar page
         return redirect(url_for('solar'))
 
     return render_template('home.html')
 
-@app.route('/solar')
+
+@app.route('/solar', methods=['GET', 'POST'])
 def solar():
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
@@ -154,11 +158,12 @@ def contact():
 
 @app.route('/wind', methods=['GET', 'POST'])
 def wind():
+    # fetch user input
     # Retrieve latitude and longitude from session
     latitude = session.get('latitude', 'Not provided')
     longitude = session.get('longitude', 'Not provided')
     postal_code = session.get('postal_code', 'Not provided')
-        
+    num_turbines = session.get('num_turbines', 'Not provided')
         
     # Setup the Open-Meteo API client with cache and retry on error
     cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
@@ -362,7 +367,7 @@ def wind():
     
     
     # Pass the plot to the template
-    return render_template('wind.html', months=months, hourly_wind_plot=hourly_month_plot_html, plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
+    return render_template('wind.html', num_turbines=num_turbines, months=months, hourly_wind_plot=hourly_month_plot_html, plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
 
 
 @app.route('/download-csv')

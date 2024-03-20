@@ -3,6 +3,69 @@
 {% block title %}Home Page{% endblock %}
 
 {% block content %}
+
+    <!-- Popup Overlay -->
+    <div id="loadingOverlay" class="overlay" style="display:none;">
+        <div class="popup">
+            <div class="loader"></div>
+            <p>Getting your specific location data from NREL databases. One moment...</p>
+        </div>
+    </div>
+
+    <style>
+        /* Custom styles for the submit button */
+        input[type="submit"] {
+            font-size: 20px; /* Larger font size */
+            padding: 10px 20px; /* Larger padding */
+            cursor: pointer; /* Hand cursor on hover */
+        }
+
+        /* Hidden by default */
+        .loading-message {
+            display: none;
+            margin-top: 20px;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Popup */
+        .popup {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        /* Solar Panel Loader */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #444;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+    </style>
+
     <h1>Virtual Power Plant Toolkit</h1>
 
     <form method="post">
@@ -33,7 +96,48 @@
         <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
         <output>45</output><br><br>
 
+        <!-- New input field for the number of wind turbines -->
+        <label for="numTurbines">Number of Wind Turbines:</label>
+        <input type="number" id="numTurbines" name="numTurbines" min="1" step="1"><br><br>
+
         <input type="submit" value="Submit">
     </form>
+
+
+
+    
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();  // Prevent the default form submission
+    
+            // Show the loading overlay
+            document.getElementById('loadingOverlay').style.display = 'flex';
+    
+            // Collect the form data
+            const formData = new FormData(e.target);
+    
+            // Make an asynchronous request to your Flask route
+            fetch('/solar', {  // Make sure to use the correct endpoint for your solar page
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text();  // or response.json() if your server returns JSON
+            })
+            .then(html => {
+                document.open();
+                document.write(html);  // Replace the current page with the response page
+                document.close();
+            })
+            .catch(error => {
+                console.error('There was a problem with the fetch operation:', error);
+            });
+        });
+    </script>
+    
+
 {% endblock %}
 
