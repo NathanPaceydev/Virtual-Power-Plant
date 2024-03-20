@@ -52,11 +52,22 @@
 
 <h1>Wind Energy Insights</h1>
 
+
 <div>{{ plot1|safe }}</div>
 <div>{{ plot2|safe }}</div>
 <br>
-<h1>Monthly Wind Speeds</h1>
-   
+<h2>Select a Month to Display Hourly Wind Speeds</h2>
+<form action="{{ url_for('wind') }}" method="post">
+    <label for="month_select">Select a month:</label>
+    <select name="month_select" id="month_select">
+        {% for num, name in months.items() %}  <!-- Corrected line -->
+            <option value="{{ num }}">{{ name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Show Data</button>
+</form>
+    <div>{{ hourly_wind_plot|safe }}</div>
+<br>
 
 
 

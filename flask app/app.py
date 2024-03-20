@@ -150,7 +150,9 @@ def solar():
 def contact():
     return render_template('contact.html')
 
-@app.route('/wind')
+
+
+@app.route('/wind', methods=['GET', 'POST'])
 def wind():
     # Retrieve latitude and longitude from session
     latitude = session.get('latitude', 'Not provided')
@@ -218,6 +220,8 @@ def wind():
     # Convert 'date' to a datetime index in the DataFrame
     hourly_dataframe.set_index('date', inplace=True)
 
+    ### Montly Average Plotting ###
+    
     # Extract month from the index (date)
     hourly_dataframe['month'] = hourly_dataframe.index.month
 
@@ -267,9 +271,98 @@ def wind():
     # Convert Plotly figures to HTML
     plot1 = fig1.to_html(full_html=False) if 'fig1' in locals() else None
     plot2 = fig2.to_html(full_html=False) if fig2 else None
+    
+    ### Monthly Specific Plotting ###
+    # Sample wind speeds at 10m and 100m for demonstration
+    # These should be replaced with your actual data arrays
+    wind_speed_10m = hourly_data["wind_speed_10m"]
+    wind_speed_100m = hourly_data["wind_speed_100m"]
+    
+    # Define the heights for the wind speeds we have and the ones we want to interpolate
+    measured_heights = np.array([10, 100])
+    interpolate_heights = np.array([20, 30, 40, 50, 60, 80])
+    interpolated_speeds = {f'wind_speed_{h}m': [] for h in interpolate_heights}
 
+    # Iterate over each hour
+    for i in range(len(wind_speed_10m)):
+        # Current wind speeds at 10m and 100m for the hour
+        current_speeds = np.array([wind_speed_10m[i], wind_speed_100m[i]])
+        
+        # Fit the curve for this hour's data
+        popt, _ = curve_fit(log_wind_profile, measured_heights, current_speeds)
+        
+        # Use the obtained fit to calculate speeds at desired heights
+        for h in interpolate_heights:
+            interpolated_speed = log_wind_profile(h, *popt)
+            interpolated_speeds[f'wind_speed_{h}m'].append(interpolated_speed)
+            
+    for height, speeds in interpolated_speeds.items():
+        hourly_data[height] = speeds
+
+    # Convert hourly_data to a DataFrame
+    hourly_dataframe = pd.DataFrame(data=hourly_data)
+    
+    
+    # Check if 'date' is already the index or a column in the DataFrame
+    if 'date' in hourly_dataframe.columns:
+        # Convert 'date' column to datetime if it exists as a column
+        hourly_dataframe['date'] = pd.to_datetime(hourly_dataframe['date'])
+        # Set 'date' as the DataFrame index
+        hourly_dataframe.set_index('date', inplace=True)
+    elif not isinstance(hourly_dataframe.index, pd.DatetimeIndex):
+        # If 'date' is not a column and the index is not already a DatetimeIndex, attempt conversion
+        hourly_dataframe.index = pd.to_datetime(hourly_dataframe.index)
+
+    ## make the user select a month defualt it to JAN
+    selected_month = 1  # Default to January
+    ## Get user request ##
+    if request.method == 'POST':
+        selected_month = int(request.form.get('month_select', selected_month))
+    
+    # Filter the DataFrame for January
+    month_data = hourly_dataframe[hourly_dataframe.index.month == selected_month]
+    
+    
+    # Ensure january_data's index is in a compatible format (datetime)
+    dates = month_data.index  # No need to convert if index is already datetime
+
+    # Create a subplot
+    fig3 = make_subplots(rows=1, cols=1)
+
+    # Plotting measured wind speeds at 10m and 100m
+    fig3.add_trace(go.Scatter(x=dates, y=month_data['wind_speed_10m'], mode='lines', name='10m (measured)', line=dict(color='blue')))
+    fig3.add_trace(go.Scatter(x=dates, y=month_data['wind_speed_100m'], mode='lines', name='100m (measured)', line=dict(color='red')))
+
+    # Plotting interpolated wind speeds
+    for height in ['20m', '30m', '40m', '50m', '60m', '80m']:
+        fig3.add_trace(go.Scatter(x=dates, y=month_data[f'wind_speed_{height}'], mode='lines', name=f'{height} (interpolated)', line=dict(dash='dash')))
+
+
+    
+    # Update plot layout
+    fig3.update_layout(
+        title='Hourly Wind Speeds for January by Height',
+        xaxis_title='Date',
+        yaxis_title='Wind Speed (m/s)',
+        legend_title='Wind Speed',
+        xaxis=dict(
+            tickangle=45,
+            nticks=10  # Optional: Adjust the number of x-axis labels
+        )
+    )
+    
+    # update month name title
+    month_name = calendar.month_name[selected_month]
+    months = {i: calendar.month_name[i] for i in range(1, 13)}
+
+    fig3.update_layout(title=f'Hourly Wind Speeds for {month_name} by Height')
+
+    # Convert Plotly figure to HTML for Flask rendering
+    hourly_month_plot_html = fig3.to_html(full_html=False)
+    
+    
     # Pass the plot to the template
-    return render_template('wind.html', plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
+    return render_template('wind.html', months=months, hourly_wind_plot=hourly_month_plot_html, plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
 
 
 @app.route('/download-csv')
