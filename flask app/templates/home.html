@@ -64,6 +64,28 @@
         }
 
 
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        table, th, td {
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        
+        th, td {
+            padding: 8px;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
     </style>
 
     <h1>Virtual Power Plant Toolkit</h1>
@@ -98,13 +120,53 @@
 
         <!-- New input field for the number of wind turbines -->
         <label for="numTurbines">Number of Wind Turbines:</label>
-        <input type="number" id="numTurbines" name="numTurbines" min="1" step="1"><br><br>
+        <input type="number" id="numTurbines" name="numTurbines" min="1" step="1">
+        <br><br>
 
         <input type="submit" value="Submit">
     </form>
 
-
-
+    <br><br><br><br>
+    <h2>Equipment details</h2>
+    <!-- Add a table here with the details of each equipment selected, solar pannels, wind turbine, battery-->
+    <table>
+        <thead>
+            <tr>
+                <th>Equipment Type</th>
+                <th>Model</th>
+                <th>Capacity</th>
+                <th>Data Sheet</th>
+                <th>Total Capacity</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Solar Panels</td>
+                <td>Model SP123</td>
+                <td>300W</td>
+                <td><a href="{{ url_for('static', filename='datasheets/Bauer-Solar-CANSOLAR (1).pdf') }}" target="_blank">Download</a></td>
+                <td>3kW</td>
+            </tr>
+            <tr>
+                <td>Wind Turbine</td>
+                <td>Model WT456</td>
+                <td>1.5kW</td>
+                <td>
+                    <a href="{{ url_for('static', filename='datasheets/Aeolos-H 100kW Brochure 8012024 (1).pdf') }}" target="_blank">Brochure PDF</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/Aeolos H 100kW on grid and off grid price list 2012024 (1).pdf') }}" target="_blank">Pricing PDF</a>
+                </td>
+                <td>3kW</td>
+            </tr>
+            <tr>
+                <td>Battery</td>
+                <td>Model B789</td>
+                <td>5kWh</td>
+                <td><a href="{{ url_for('static', filename='datasheets/Ficha-Tecnica-Mega-Pack (1).pdf') }}" target="_blank">Download</a></td>
+                <td>20kWh</td>
+            </tr>
+        </tbody>
+    </table>
     
     <script>
         document.querySelector('form').addEventListener('submit', function(e) {
