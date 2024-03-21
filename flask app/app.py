@@ -47,13 +47,27 @@ def solar():
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
     postal_code = session.get('postal_code', 'Not provided')
-    array_type = session.get('array_type', 'Not provided')
-    module_type = session.get('module_type', 'Not provided')
+    array_type_num = session.get('array_type', 'Not provided')
+    module_type_num = session.get('module_type', 'Not provided')
     tilt = session.get('tilt', 'Not provided')
+    
+    array_types = {
+        '0': 'Fixed Open Rack',
+        '1': 'Fixed - Roof Mounted',
+        '2': '1-Axis Tracking',
+        '3': '1-Axis Backtracking',
+        '4': '2-Axis',
+    }
+    
+    module_types = {
+        '1': 'Standard',
+        '2': 'Premium',
+        '3': 'Thin Film',
+    }
     
     # Call PV Watts API
     # Calculate system capacity
-    solar_cell_efficiency = 21.3  # [%] Effeciency of Bi-facial premium cells
+    solar_cell_efficiency = 22.26  # [%] Effeciency of Bi-facial premium cells
     conversion_factor = 1  # [KW / m^2]
     system_capacity = float(surface_area) * solar_cell_efficiency * conversion_factor
     
@@ -72,8 +86,8 @@ def solar():
         "azimuth": 180,
         "system_capacity": system_capacity,
         "losses": 14.3,
-        "array_type": array_type,
-        "module_type": module_type,
+        "array_type": array_type_num,
+        "module_type": module_type_num,
         "gcr": 0.4,
         "dc_ac_ratio": 1.2,
         "inv_eff": 96.0,
@@ -145,9 +159,13 @@ def solar():
     plot3 = fig3.to_html(full_html=False)
     plot4 = fig4.to_html(full_html=False)
     plot5 = fig5.to_html(full_html=False)
+    
+    
+    # convert the array_type and module type back to strings
+    array_type_name = array_types.get(array_type_num, 'Not provided')
+    module_type_name = module_types.get(module_type_num, 'Not provided')
 
-
-    return render_template('solar.html', surface_area=surface_area, postal_code=postal_code, array_type=array_type, module_type=module_type, tilt=tilt, system_capacity=system_capacity, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
+    return render_template('solar.html', surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
 
 
 @app.route('/contact')
