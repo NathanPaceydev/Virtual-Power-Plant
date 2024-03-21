@@ -3,6 +3,42 @@
 {% block title %}Contact Page{% endblock %}
 
 {% block content %}
-    <h1>Contact</h1>
-{% endblock %}
+<style>
+.contact-info {
+    background-color: #f4f4f4;
+    border-left: 5px solid #2a9d8f;
+    padding: 20px;
+    margin-bottom: 20px;
+}
 
+.contact-info h2,
+.contact-info h3,
+.contact-info p,
+.contact-info a {
+    margin: 10px 0;
+}
+
+.contact-info a {
+    color: #2a9d8f;
+    text-decoration: none;
+}
+
+.contact-info a:hover {
+    text-decoration: underline;
+}
+</style>
+
+<div class="contact-info">
+    <h1>Contact Us</h1>
+    <h2>Lead Developer</h2>
+    <p>Nathan Pacey</p>
+    <p>Email: <a href="mailto:npacey01@gmail.com">npacey01@gmail.com</a></p>
+    <p>Phone: <a href="tel:+12269883313">226-988-3313</a></p>
+    <p>LinkedIn: <a href="https://www.linkedin.com/in/nathan-pacey/" target="_blank">nathan-pacey</a></p>
+    
+    <h3>Team Members</h3>
+    <p>Damien Pikel</p>
+    <p>Kangyu Zhao</p>
+</div>
+
+{% endblock %}
