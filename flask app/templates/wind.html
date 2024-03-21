@@ -46,7 +46,7 @@
             <!-- Example output row -->
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">100343.00</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_system_capacity_kw | round(2) }}</td>
             </tr>
             
             
@@ -74,7 +74,10 @@
 </form>
     <div>{{ hourly_wind_plot|safe }}</div>
 <br>
+<br>
 
+<!-- Hourly Averaged plot-->
+<div>{{ stat_plot|safe }}</div>
 
 
 {% endblock %}

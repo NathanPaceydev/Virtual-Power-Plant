@@ -16,6 +16,8 @@ pio.templates.default = "none"
 import csv
 
 import plotly.graph_objs as go
+from plotly.graph_objs import Scatter, Figure
+
 from plotly.subplots import make_subplots
 
 app = Flask(__name__)
@@ -383,10 +385,74 @@ def wind():
     # Convert Plotly figure to HTML for Flask rendering
     hourly_month_plot_html = fig3.to_html(full_html=False)
     
+    capacity_factor = 0.90 # [%] efficiency rating
+    capicity_per_turbine = 100 #[kW]
+    total_system_capacity_kw = num_turbines*capacity_factor*capicity_per_turbine
     
-    # Pass the plot to the template
-    return render_template('wind.html', num_turbines=num_turbines, months=months, hourly_wind_plot=hourly_month_plot_html, plot1=plot1, plot2=plot2, postal_code=postal_code, latitude=latitude, longitude=longitude)
+    
+    ############### hourly averaged #################
+    # Ensure 'hour' column is correct based on the 'date' index
+    hourly_dataframe['hour'] = hourly_dataframe.index.hour
+    # Specify the wind speed heights you have in your DataFrame
+    wind_speed_heights = ['wind_speed_10m','wind_speed_50m', 'wind_speed_100m']
 
+    # Initialize a dictionary to hold our summary stats for each height
+    hourly_stats = {height: {'mean': [], 'std': []} for height in wind_speed_heights}
+
+    # Calculate mean and std for each height and hour
+    for height in wind_speed_heights:
+        for hour in range(24):
+            # Filter data for the current hour and height
+            hourly_data = hourly_dataframe[hourly_dataframe['hour'] == hour][height]
+            # Calculate mean and std, append to the respective lists
+            hourly_stats[height]['mean'].append(hourly_data.mean())
+            hourly_stats[height]['std'].append(hourly_data.std())
+
+    # Initialize a new Plotly figure for the hourly wind speed statistics
+    stat_fig = Figure()
+
+    # Add traces for each height with error bars
+    for height in wind_speed_heights:
+        stat_fig.add_trace(
+            Scatter(
+                x=list(range(24)),
+                y=hourly_stats[height]['mean'],
+                error_y=dict(
+                    type='data', # value of error bar given in data coordinates
+                    array=hourly_stats[height]['std'],
+                    visible=True
+                ),
+                name=height
+            )
+        )
+
+    # Update layout of the figure
+    stat_fig.update_layout(
+        title='Average Hourly Wind Speed for Each Height with Error Bars',
+        xaxis_title='Hour of Day',
+        yaxis_title='Wind Speed (m/s)',
+        legend_title='Height',
+        xaxis=dict(tickvals=list(range(24)), ticktext=[f"{h}:00" for h in range(24)])
+    )
+
+    # Convert the figure to HTML
+    stat_plot_html = stat_fig.to_html(full_html=False)
+    
+    
+    # Pass all plots to the template
+    return render_template(
+        'wind.html',
+        total_system_capacity_kw=total_system_capacity_kw,
+        num_turbines=num_turbines,
+        months=months,
+        hourly_wind_plot=hourly_month_plot_html,
+        stat_plot=stat_plot_html, # pass the new plot to the template
+        plot1=plot1,
+        plot2=plot2,
+        postal_code=postal_code,
+        latitude=latitude,
+        longitude=longitude
+    )
 
 @app.route('/download-csv')
 def download_csv():
