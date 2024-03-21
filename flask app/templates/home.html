@@ -91,7 +91,7 @@
     <h1>Virtual Power Plant Toolkit</h1>
 
     <form method="post">
-
+        <h3>Solar Inputs</h3>
         <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
         <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
 
@@ -117,10 +117,19 @@
         <label for="tilt">Tilt (0 to 90 degrees):</label>
         <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
         <output>45</output><br><br>
-
-        <!-- New input field for the number of wind turbines -->
+        
+        <h3>Wind Inputs</h3>
         <label for="numTurbines">Number of Wind Turbines:</label>
         <input type="number" id="numTurbines" name="numTurbines" min="1" step="1">
+        <br><br>
+        
+        <label for="turbineHeight">Turbine Height:</label>
+        <select id="turbineHeight" name="turbineHeight">
+            <option value="18">18m</option>
+            <option value="24">24m</option>
+            <option value="30">30m</option>
+            <option value="36">36m</option>
+        </select>
         <br><br>
 
         <input type="submit" value="Submit">
@@ -133,40 +142,58 @@
         <thead>
             <tr>
                 <th>Equipment Type</th>
+                <th>Manufacturing Company</th>
                 <th>Model</th>
-                <th>Capacity</th>
+                <th>Capacity per Unit</th>
+                <th>Efficiency</th>
+                <th>Cost [CAD]</th>
                 <th>Data Sheet</th>
-                <th>Total Capacity</th>
             </tr>
         </thead>
         <tbody>
             <tr>
                 <td>Solar Panels</td>
-                <td>Model SP123</td>
-                <td>300W</td>
-                <td><a href="{{ url_for('static', filename='datasheets/Bauer-Solar-CANSOLAR (1).pdf') }}" target="_blank">Download</a></td>
-                <td>3kW</td>
+                <td>Bauer Solartechnik</td>
+                <td>PREMIUM PROTECT BS-575-144M10NHB-GG</td>
+                <td>575W</td>
+                <td>22.26%</td>
+                <td>$0.54 / W</td>
+                <td><a href="{{ url_for('static', filename='datasheets/Bauer-Solar-CANSOLAR (1).pdf') }}" target="_blank">Data Sheet PDF</a></td>
             </tr>
+
             <tr>
                 <td>Wind Turbine</td>
+                <td>Aeolos</td>
                 <td>Model WT456</td>
-                <td>1.5kW</td>
+                <td>100kW</td>
+                <td>90.0%</td>
+                <td>$165,709.29 / Unit</td>
+
                 <td>
                     <a href="{{ url_for('static', filename='datasheets/Aeolos-H 100kW Brochure 8012024 (1).pdf') }}" target="_blank">Brochure PDF</a>
                     <p> </p>
                     <a href="{{ url_for('static', filename='datasheets/Aeolos H 100kW on grid and off grid price list 2012024 (1).pdf') }}" target="_blank">Pricing PDF</a>
                 </td>
-                <td>3kW</td>
+                
             </tr>
+
             <tr>
                 <td>Battery</td>
-                <td>Model B789</td>
-                <td>5kWh</td>
-                <td><a href="{{ url_for('static', filename='datasheets/Ficha-Tecnica-Mega-Pack (1).pdf') }}" target="_blank">Download</a></td>
-                <td>20kWh</td>
+                <td>Tesla Energy</td>
+                <td>Megapack 1462965-XX-Y</td>
+                <td>1,927 kW / 3,854 kWh</td>
+                <td>92.0%</td>
+                <td>$2,883,732.34 / Unit</td>
+                <td>
+                    <a href="https://www.tesla.com/megapack/design" target="_blank">Megapack Info Page</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/Ficha-Tecnica-Mega-Pack (1).pdf') }}" target="_blank">Data Sheet PDF</a>
+                </td>
             </tr>
+
         </tbody>
     </table>
+    <br><br>
     
     <script>
         document.querySelector('form').addEventListener('submit', function(e) {
