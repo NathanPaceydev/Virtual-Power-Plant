@@ -37,6 +37,7 @@ def home():
 
         # Store the new input for the number of wind turbines
         session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
+        session['turbineHeight'] = request.form.get('turbineHeight', type=int)
 
         # Redirect to the solar page
         return redirect(url_for('solar'))
@@ -184,7 +185,8 @@ def wind():
     longitude = session.get('longitude', 'Not provided')
     postal_code = session.get('postal_code', 'Not provided')
     num_turbines = session.get('num_turbines', 'Not provided')
-        
+    turbine_height = session.get('turbineHeight', 'Not provided')
+
     # Setup the Open-Meteo API client with cache and retry on error
     cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
@@ -442,6 +444,7 @@ def wind():
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        turbine_height=turbine_height,
         total_system_capacity_kw=total_system_capacity_kw,
         num_turbines=num_turbines,
         months=months,
