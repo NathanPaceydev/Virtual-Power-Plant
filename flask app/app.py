@@ -36,7 +36,7 @@ def home():
         session['tilt'] = request.form.get('tilt')
 
         # Store the new input for the number of wind turbines
-        session['num_turbines'] = request.form.get('numTurbines', type=int)  # Default to integer type
+        session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
 
         # Redirect to the solar page
         return redirect(url_for('solar'))
