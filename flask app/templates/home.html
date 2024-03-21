@@ -220,36 +220,14 @@
         </tbody>
     </table>
     <br><br>
-
+    
     <script>
         document.querySelector('form').addEventListener('submit', function(e) {
-            e.preventDefault();  // Prevent the default form submission
+            //e.preventDefault();  // Prevent the default form submission
     
             // Show the loading overlay
             document.getElementById('loadingOverlay').style.display = 'flex';
     
-            // Collect the form data
-            const formData = new FormData(e.target);
-    
-            // Make an asynchronous request to your Flask route
-            fetch('/solar', {  // Make sure to use the correct endpoint for your solar page
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.text();  // or response.json() if your server returns JSON
-            })
-            .then(html => {
-                document.open();
-                document.write(html);  // Replace the current page with the response page
-                document.close();
-            })
-            .catch(error => {
-                console.error('There was a problem with the fetch operation:', error);
-            });
         });
     </script>
     
