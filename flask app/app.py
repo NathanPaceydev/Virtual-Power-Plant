@@ -44,7 +44,19 @@ def home():
 
     return render_template('home.html')
 
+@app.route('/location', methods=['GET','POST'])
+def location():
+    postal_code = session.get('postal_code', 'Not provided')
+    latitude = session.get('latitude', 'Not provided')
+    longitude = session.get('longitude', 'Not provided')
+    location = session.get('location', 'Not provided')
+    elivation = session.get('elivation', 'Not provided')
+    distance = session.get('distance', 'Not provided')
+    
+    return render_template('location.html', location=location, elivation=elivation, distance=distance, latitude=latitude, longitude=longitude, postal_code=postal_code)
 
+
+    
 @app.route('/solar', methods=['GET', 'POST'])
 def solar():
     # Retrieve form data from session
@@ -122,10 +134,16 @@ def solar():
         
         latitude = station_info["lat"]
         longitude = station_info["lon"]
+        location_string = str(station_info["city"])+', '+str(station_info["state"])+', '+str(station_info["country"])
+        elivation = station_info['elev'] #[m]
+        distance_from_site = station_info['distance']
         
         session['latitude'] = latitude
         session['longitude'] = longitude
         session['postal_code'] = postal_code
+        session['location'] = location_string
+        session['elivation'] = elivation
+        session['distance'] = distance_from_site
 
         total_dc_yearly = np.sum(dc_monthly) #[kWh DC]
         total_ac_yearly = np.sum(ac_monthly) #[kWh AC]
