@@ -47,12 +47,15 @@
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
                 <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
             </tr>
-            <!-- Example output row -->
+            
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ total_system_capacity_kw | round(2) }}</td>
             </tr>
-            
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Wind Generation (kWh)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_yearly_generation | round(2) }}</td>
+            </tr>
             
             
         </table>
@@ -82,6 +85,9 @@
 
 <!-- Hourly Averaged plot-->
 <div>{{ stat_plot|safe }}</div>
+<br><br>
+<!-- Specific Choosen wind height -->
+<div>{{ monthly_gen_plot_html|safe }}</div>
 
 
 {% endblock %}

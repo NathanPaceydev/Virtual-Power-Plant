@@ -307,7 +307,7 @@ def wind():
     
     # Define the heights for the wind speeds we have and the ones we want to interpolate
     measured_heights = np.array([10, 100])
-    interpolate_heights = np.array([20, 30, 40, 50, 60, 80])
+    interpolate_heights = np.array([18, 24, 30, 36, 55, 80])
     interpolated_speeds = {f'wind_speed_{h}m': [] for h in interpolate_heights}
 
     # Iterate over each hour
@@ -361,7 +361,7 @@ def wind():
     fig3.add_trace(go.Scatter(x=dates, y=month_data['wind_speed_100m'], mode='lines', name='100m (measured)', line=dict(color='red')))
 
     # Plotting interpolated wind speeds
-    for height in ['20m', '30m', '40m', '50m', '60m', '80m']:
+    for height in ['18m', '24m', '30m', '36m', '55m', '80m']:
         fig3.add_trace(go.Scatter(x=dates, y=month_data[f'wind_speed_{height}'], mode='lines', name=f'{height} (interpolated)', line=dict(dash='dash')))
 
 
@@ -396,7 +396,7 @@ def wind():
     # Ensure 'hour' column is correct based on the 'date' index
     hourly_dataframe['hour'] = hourly_dataframe.index.hour
     # Specify the wind speed heights you have in your DataFrame
-    wind_speed_heights = ['wind_speed_10m','wind_speed_50m', 'wind_speed_100m']
+    wind_speed_heights = ['wind_speed_10m','wind_speed_55m', 'wind_speed_100m']
 
     # Initialize a dictionary to hold our summary stats for each height
     hourly_stats = {height: {'mean': [], 'std': []} for height in wind_speed_heights}
@@ -440,10 +440,48 @@ def wind():
     # Convert the figure to HTML
     stat_plot_html = stat_fig.to_html(full_html=False)
     
-    
+    ######## Wind Generation ##########
+    # see wind speed output relationship code to see how values were derived
+    # funtion to take in houly wind speed and calculate the kW produced in that hour
+    def wind_output_fit(x_wind_speed):
+        # Use a vectorized approach to handle an array of wind speeds
+        output = np.where((x_wind_speed > 11) | (x_wind_speed < 3), 0, 51 + (119 / np.pi) * np.arctan(0.8 * x_wind_speed - 6))
+        return output
+
+    # Apply the function to calculate the power output for each hour
+    hourly_dataframe['power_output'] = wind_output_fit(hourly_dataframe['wind_speed_'+str(turbine_height)+'m'])
+
+    # Assume `num_turbines` is defined somewhere in your code
+    # Calculate total power generation for each hour
+    hourly_dataframe['total_power_gen'] = hourly_dataframe['power_output'] * num_turbines * capacity_factor
+
+    # Sum up to find the total yearly generation
+    total_yearly_generation = hourly_dataframe['total_power_gen'].sum()
+
+    # Aggregate this hourly data by month
+    monthly_generation = hourly_dataframe.resample('M').sum()['total_power_gen']
+
+    # Plot the monthly generation
+    wind_month_fig = go.Figure()
+    wind_month_fig.add_trace(go.Bar(x=monthly_generation.index.month, y=monthly_generation.values))
+
+    # Update plot layout
+    wind_month_fig.update_layout(
+        title='Monthly Wind Power Generation',
+        xaxis_title='Month',
+        yaxis_title='Total Power Generation (kWh)',
+        xaxis=dict(tickvals=list(range(1, 13)), ticktext=list(calendar.month_name[1:])),
+        yaxis=dict(title='Total Power Generation (kWh)')
+    )
+
+    # You can convert this figure to HTML for Flask as before
+    monthly_gen_plot_html = wind_month_fig.to_html(full_html=False)
+
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        total_yearly_generation=total_yearly_generation,
+        monthly_gen_plot_html=monthly_gen_plot_html,
         turbine_height=turbine_height,
         total_system_capacity_kw=total_system_capacity_kw,
         num_turbines=num_turbines,
