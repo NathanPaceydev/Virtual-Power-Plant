@@ -53,6 +53,14 @@
                 <td style="border: 1px solid #ddd; padding: 8px;">Total Yearly AC (kWh)</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ total_ac_yearly | round(2) }}</td>
             </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Upfront Cost [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${{ solar_cost | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Number of Solar Pannels (rounded)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ num_pannels | round(0) }}</td>
+            </tr>
             
         </table>
     </div>

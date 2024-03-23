@@ -83,7 +83,7 @@ def solar():
     # Call PV Watts API
     # Calculate system capacity
     solar_cell_efficiency = 22.26  # [%] Effeciency of Bi-facial premium cells
-    conversion_factor = 1  # [KW / m^2]
+    conversion_factor = 10  # [KW / m^2]
     system_capacity = float(surface_area) * solar_cell_efficiency * conversion_factor
     
     total_dc_yearly = 0
@@ -185,8 +185,15 @@ def solar():
     # convert the array_type and module type back to strings
     array_type_name = array_types.get(array_type_num, 'Not provided')
     module_type_name = module_types.get(module_type_num, 'Not provided')
+    
+    # calculate number of solar pannels and the cost associated
+    solar_cost_per_watt = 0.45 # $[CAD] / W
+    solar_cost = system_capacity * solar_cost_per_watt # $ [CAD]
+    # calculate the number of pannels
+    pannel_wattage = 575 #W
+    num_pannels = system_capacity / pannel_wattage
 
-    return render_template('solar.html', surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
+    return render_template('solar.html', num_pannels=num_pannels, solar_cost=solar_cost, surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
 
 
 @app.route('/contact')
@@ -494,10 +501,15 @@ def wind():
 
     # You can convert this figure to HTML for Flask as before
     monthly_gen_plot_html = wind_month_fig.to_html(full_html=False)
+    
+    ## calculate upfront cost for wind ##
+    cost_per_turbine = 165709.29 #[CAD]
+    wind_cost = num_turbines*cost_per_turbine
 
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        wind_cost=wind_cost,
         total_yearly_generation=total_yearly_generation,
         monthly_gen_plot_html=monthly_gen_plot_html,
         turbine_height=turbine_height,
@@ -512,6 +524,14 @@ def wind():
         latitude=latitude,
         longitude=longitude
     )
+
+
+@app.route('/battery', methods=['GET','POST'])
+def battery():
+    
+    return render_template('battery.html')
+
+
 
 @app.route('/download-csv')
 def download_csv():

@@ -5,14 +5,14 @@
 {% block content %}
     <h1>Location Information</h1>
     <p><strong>Location:</strong> {{ location }}</p>
-    <p><strong>Postal Code:</strong> {{ postal_code }}</p>
+    <p><strong>Inputted Postal Code:</strong> {{ postal_code }}</p>
     <p><strong>Latitude:</strong> {{ latitude }}</p>
     <p><strong>Longitude:</strong> {{ longitude }}</p>
     <p><strong>Elevation:</strong> {{ elivation | round(2)}} meters</p>
-    <p><strong>Distance to Nearest Station:</strong> {{ distance }} meters</p>
+    <p><strong>Distance from Postal Code to Nearest Station Site:</strong> {{ distance }} meters</p>
 
     {% if latitude and longitude %}
-    <h2>Site Location on Map</h2>
+    <h2>Station Site Location on Map</h2>
     <!-- Replace 'YOUR_API_KEY' with your actual Google Maps API key -->
     <iframe
         width="600"
