@@ -80,12 +80,23 @@ def solar():
         '3': 'Thin Film',
     }
     
+    module_efficiencies = {
+    'Standard': 19,
+    'Premium': 21.3,
+    'Thin Film': 18
+    }
+    
+    # convert the array_type and module type back to strings
+    array_type_name = array_types.get(array_type_num, 'Not provided')
+    module_type_name = module_types.get(module_type_num, 'Not provided')
+    
     # Call PV Watts API
     # Calculate system capacity
-    solar_cell_efficiency = 22.26  # [%] Effeciency of Bi-facial premium cells
-    conversion_factor = 10  # [KW / m^2]
-    system_capacity = float(surface_area) * solar_cell_efficiency * conversion_factor
-    
+    efficiency = module_efficiencies.get(module_type_name, 'Unknown efficiency')
+  
+    conversion_factor = 1  # [KW / m^2]
+    system_capacity_kW = float(surface_area) * efficiency/100 * conversion_factor # kW
+    system_capacity_W = system_capacity_kW*1000
     total_dc_yearly = 0
     total_ac_yearly = 0
 
@@ -99,8 +110,8 @@ def solar():
     params = {
         "api_key": "rS4jhBrbjOjG2Rs1d2PZD6HGaIvO1gjDofyabEOV",
         "azimuth": 180,
-        "system_capacity": system_capacity,
-        "losses": 14.3,
+        "system_capacity": system_capacity_kW,
+        "losses": 14.08,
         "array_type": array_type_num,
         "module_type": module_type_num,
         "gcr": 0.4,
@@ -111,8 +122,7 @@ def solar():
         "dataset": "nsrdb",
         "tilt": float(tilt),
         "address": postal_code,
-        "albedo": 0.3,
-        "bifaciality": 0.7
+        
     }
 
     # Make the GET request to the PVWatts API
@@ -182,18 +192,15 @@ def solar():
     plot5 = fig5.to_html(full_html=False)
     
     
-    # convert the array_type and module type back to strings
-    array_type_name = array_types.get(array_type_num, 'Not provided')
-    module_type_name = module_types.get(module_type_num, 'Not provided')
     
     # calculate number of solar pannels and the cost associated
     solar_cost_per_watt = 0.45 # $[CAD] / W
-    solar_cost = system_capacity * solar_cost_per_watt # $ [CAD]
+    solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
     # calculate the number of pannels
     pannel_wattage = 575 #W
-    num_pannels = system_capacity / pannel_wattage
+    num_pannels = system_capacity_W / pannel_wattage
 
-    return render_template('solar.html', num_pannels=num_pannels, solar_cost=solar_cost, surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
+    return render_template('solar.html', num_pannels=num_pannels, solar_cost=solar_cost, surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity_kW, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
 
 
 @app.route('/contact')
@@ -474,7 +481,10 @@ def wind():
         return output
 
     # Apply the function to calculate the power output for each hour
-    hourly_dataframe['power_output'] = wind_output_fit(hourly_dataframe['wind_speed_'+str(turbine_height)+'m'])
+    specific_wind_speeds = hourly_dataframe['wind_speed_'+str(turbine_height)+'m']
+    hourly_dataframe['power_output'] = wind_output_fit(specific_wind_speeds)
+    
+    average_yearly_speed = specific_wind_speeds.mean()
 
     # Assume `num_turbines` is defined somewhere in your code
     # Calculate total power generation for each hour
@@ -509,6 +519,7 @@ def wind():
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        average_yearly_speed=average_yearly_speed,
         wind_cost=wind_cost,
         total_yearly_generation=total_yearly_generation,
         monthly_gen_plot_html=monthly_gen_plot_html,

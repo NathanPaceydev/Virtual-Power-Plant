@@ -19,7 +19,7 @@
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ num_turbines | round(0) }}</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">Turbine hieght (m)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Turbine height (m)</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ turbine_height | round(0) }}</td>
             </tr>
            
@@ -45,6 +45,10 @@
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">Yearly Wind Generation (kWh)</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ total_yearly_generation | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Average Wind Speeds (m/s)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ average_yearly_speed | round(3) }}</td>
             </tr>
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">Upfront Cost [CAD]</td>
