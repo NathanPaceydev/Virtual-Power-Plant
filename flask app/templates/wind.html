@@ -29,7 +29,7 @@
         </table>
     </div>
 
-    <!-- Solar System Outputs Column -->
+    <!-- Wind System Outputs Column -->
     <div style="width: 48%;">
         <h1>Wind System Outputs</h1>
         <table style="width: 100%; border-collapse: collapse;">
@@ -85,6 +85,14 @@
 <br><br>
 <!-- Specific Choosen wind height -->
 <div>{{ monthly_gen_plot_html|safe }}</div>
+
+
+<br><br>
+<h1>wind Financial Plots </h1>
+<div>{{ wind_payback_plot|safe }}</div>
+<br>
+<div>{{ wind_ROI_plot|safe }}</div>
+<div>{{ wind_rev_plot|safe }}</div>
 
 
 {% endblock %}

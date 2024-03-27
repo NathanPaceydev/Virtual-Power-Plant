@@ -54,12 +54,20 @@
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ total_ac_yearly | round(2) }}</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">Upfront Cost [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Number of Solar Pannels (rounded)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ num_pannels | round(0) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Cost of Solar Pannels [CAD]</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${{ solar_cost | round(2) }}</td>
             </tr>
             <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">Number of Solar Pannels (rounded)</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">{{ num_pannels | round(0) }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">Cost of Mount [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${{ cost_mount | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><b>Total Installed Upfront Cost of Solar [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"><b>${{ total_solar_installed_cost | round(2) }}</td>
             </tr>
             
         </table>
@@ -75,7 +83,14 @@
     <div>{{ plot4|safe }}</div>
     <div>{{ plot5|safe }}</div>
 
-    
+    <br><br>
+    <h1>Solar Financial Plots </h1>
+    <div>{{ solar_payback_plot|safe }}</div>
+    <br>
+    <div>{{ solar_ROI_plot|safe }}</div>
+    <div>{{ solar_rev_plot|safe }}</div>
+
+
     <a href="{{ url_for('download_csv') }}" class="btn btn-primary">Download Data as CSV</a>
 
 

@@ -67,12 +67,14 @@ def solar():
     tilt = session.get('tilt', 'Not provided')
     
     array_types = {
-        '0': 'Fixed Open Rack',
+        '0': 'Fixed Carport',
         '1': 'Fixed - Roof Mounted',
         '2': '1-Axis Tracking',
         '3': '1-Axis Backtracking',
         '4': '2-Axis',
     }
+    
+
     
     module_types = {
         '1': 'Standard',
@@ -196,11 +198,125 @@ def solar():
     # calculate number of solar pannels and the cost associated
     solar_cost_per_watt = 0.45 # $[CAD] / W
     solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
+    
+    # calculate the cost of mounts
+    costCarport = 1.57  # approximate $/W per Hayter Group
+    costRoof = 0.410 # approximate $/W per Hayter Group
+
+    if array_type_num == 1:
+        #roof mounted
+        cost_mount = costRoof*system_capacity_W
+    else:
+        # otherwise
+        cost_mount = costCarport*system_capacity_W
+    
+    total_solar_installed_cost = solar_cost+cost_mount
+    
     # calculate the number of pannels
     pannel_wattage = 575 #W
     num_pannels = system_capacity_W / pannel_wattage
 
-    return render_template('solar.html', num_pannels=num_pannels, solar_cost=solar_cost, surface_area=surface_area, postal_code=postal_code, array_type=array_type_name, module_type=module_type_name, tilt=tilt, system_capacity=system_capacity_kW, total_dc_yearly=total_dc_yearly, total_ac_yearly=total_ac_yearly, plot1=plot1, plot2=plot2, plot3=plot3, plot4=plot4, plot5=plot5)
+    ####### Finical Plots ########
+    projLife = 30 # years
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_ac_yearly
+    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    upfront_cost = total_solar_installed_cost
+    
+    # Calculating yearly revenue for each generation scenario
+    yearly_revenue = np.outer(generation_array, buyback_pricing)
+    
+    # Calculate ROI for each generation and buyback pricing
+    roi = yearly_revenue*projLife / upfront_cost *100
+
+    # Calculate Payback Period
+    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    
+    
+    
+    # Creating Plotly plot
+    data = []
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=yearly_revenue[i], mode='lines', name=f'Yearly Gen: {gen:.2f} kWh')
+        data.append(trace)
+
+    layout = go.Layout(
+        title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        legend=dict(title='Yearly Generation'),
+    )
+
+    fig6 = go.Figure(data=data, layout=layout)
+
+    # Encoding plot to HTML
+    solar_rev_plot = fig6.to_html(full_html=False)
+    
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=roi[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='ROI for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='ROI [%]'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig7 = go.Figure(data=traces, layout=layout)
+    # Encoding plot to HTML
+    solar_ROI_plot = fig7.to_html(full_html=False)
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=payback_period[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='Payback Period for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Payback Period (Years)'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig8 = go.Figure(data=traces, layout=layout)
+    solar_payback_plot = fig8.to_html(full_html=False)
+
+    
+    return render_template(
+        'solar.html', 
+        solar_ROI_plot=solar_ROI_plot,
+        solar_payback_plot=solar_payback_plot,
+        solar_rev_plot=solar_rev_plot,
+        total_solar_installed_cost=total_solar_installed_cost,
+        cost_mount=cost_mount,
+        num_pannels=num_pannels, 
+        solar_cost=solar_cost, 
+        surface_area=surface_area, 
+        postal_code=postal_code, 
+        array_type=array_type_name, 
+        module_type=module_type_name, 
+        tilt=tilt, 
+        system_capacity=system_capacity_kW, 
+        total_dc_yearly=total_dc_yearly, 
+        total_ac_yearly=total_ac_yearly, 
+        plot1=plot1, 
+        plot2=plot2, 
+        plot3=plot3, 
+        plot4=plot4, 
+        plot5=plot5
+        )
 
 
 @app.route('/contact')
@@ -516,9 +632,91 @@ def wind():
     cost_per_turbine = 165709.29 #[CAD]
     wind_cost = num_turbines*cost_per_turbine
 
+
+    ####### Finical Plots ########
+    projLife = 30 # years
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_yearly_generation
+    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    upfront_cost = wind_cost
+    
+    # Calculating yearly revenue for each generation scenario
+    yearly_revenue = np.outer(generation_array, buyback_pricing)
+    
+    # Calculate ROI for each generation and buyback pricing
+    roi = yearly_revenue*projLife / upfront_cost *100
+
+    # Calculate Payback Period
+    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    
+    
+    
+    # Creating Plotly plot
+    data = []
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=yearly_revenue[i], mode='lines', name=f'Yearly Gen: {gen:.2f} kWh')
+        data.append(trace)
+
+    layout = go.Layout(
+        title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        legend=dict(title='Yearly Generation'),
+    )
+
+    fig6 = go.Figure(data=data, layout=layout)
+
+    # Encoding plot to HTML
+    wind_rev_plot = fig6.to_html(full_html=False)
+    
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=roi[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='ROI for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='ROI [%]'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig7 = go.Figure(data=traces, layout=layout)
+    # Encoding plot to HTML
+    wind_ROI_plot = fig7.to_html(full_html=False)
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=payback_period[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='Payback Period for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Payback Period (Years)'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig8 = go.Figure(data=traces, layout=layout)
+    wind_payback_plot = fig8.to_html(full_html=False)
+
+
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        wind_ROI_plot=wind_ROI_plot,
+        wind_rev_plot=wind_rev_plot,
+        wind_payback_plot=wind_payback_plot,
         average_yearly_speed=average_yearly_speed,
         wind_cost=wind_cost,
         total_yearly_generation=total_yearly_generation,
