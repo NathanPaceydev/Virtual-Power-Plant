@@ -741,6 +741,70 @@ def battery():
     return render_template('battery.html')
 
 
+@app.route('/pricing', methods=['GET','POST'])
+def pricing():
+    # Load and clean the data
+    file_path = './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    data = pd.read_csv(file_path, skiprows=2, header=None)
+    data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+    data_cleaned = data[['Date', 'Hour', 'HOEP']].dropna()
+    data_cleaned = data_cleaned[data_cleaned['Hour'] != 'Hour']
+    data_cleaned['Hour'] = data_cleaned['Hour'].astype(int) - 1
+    data_cleaned['Datetime'] = pd.to_datetime(data_cleaned['Date']) + pd.to_timedelta(data_cleaned['Hour'], unit='h')
+    data_cleaned['HOEP'] = pd.to_numeric(data_cleaned['HOEP'], errors='coerce')
+    data_cleaned.dropna(subset=['HOEP'], inplace=True)
+
+    # Plotting with Plotly
+    hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $)'})
+    hourly_price_fig.update_xaxes(tickangle=45)
+
+    # Convert plot to HTML
+    hourly_price_plot = hourly_price_fig.to_html(full_html=False)
+    
+    # Define the file paths
+    file_paths = {
+        '2021': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2021_v395.csv',
+        '2022': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2022_v396.csv',
+        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    }
+
+    hourly_avg_all_years = []
+    traces = []
+
+    for year, file_path in file_paths.items():
+        data = pd.read_csv(file_path, skiprows=2)
+        data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+        data = data[['Date', 'Hour', 'HOEP']].dropna()
+        data = data[data['Hour'].apply(lambda x: x.isnumeric())]
+        data['Hour'] = data['Hour'].astype(int) - 1
+        data['HOEP'] = pd.to_numeric(data['HOEP'], errors='coerce').dropna()
+
+        hourly_avg = data.groupby('Hour')['HOEP'].mean().reset_index()
+        hourly_avg_all_years.append(hourly_avg.set_index('Hour'))
+
+        trace = go.Scatter(x=hourly_avg['Hour'], y=hourly_avg['HOEP'], mode='lines', name=f'Average HOEP {year}')
+        traces.append(trace)
+
+    combined_hourly_avg = pd.concat(hourly_avg_all_years, axis=1)
+    combined_hourly_mean = combined_hourly_avg.mean(axis=1)
+    combined_hourly_std = combined_hourly_avg.std(axis=1)
+
+    trace_combined = go.Scatter(x=combined_hourly_mean.index, y=combined_hourly_mean, mode='lines+markers', name='Total Average HOEP',
+                                 error_y=dict(type='data', array=combined_hourly_std, visible=True))
+    traces.append(trace_combined)
+
+    # Define the layout
+    layout = go.Layout(title='Average Hourly Energy Prices (HOEP) for Each Hour Over Years with Error Bars',
+                       xaxis=dict(title='Hour of the Day'),
+                       yaxis=dict(title='Average HOEP (in $)'),
+                       showlegend=True)
+
+    # Create figure and convert to HTML
+    hourly_avg_price_fig = go.Figure(data=traces, layout=layout)
+    hourly_avg_price_plot = hourly_avg_price_fig.to_html(full_html=False)
+
+    return render_template('pricing.html', hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
+
 
 @app.route('/download-csv')
 def download_csv():
