@@ -77,9 +77,9 @@ def solar():
 
     
     module_types = {
-        '1': 'Standard',
-        '2': 'Premium',
-        '3': 'Thin Film',
+        '0': 'Standard',
+        '1': 'Premium',
+        '2': 'Thin Film',
     }
     
     module_efficiencies = {
@@ -129,6 +129,17 @@ def solar():
 
     # Make the GET request to the PVWatts API
     response = requests.get(url, params=params)
+    
+    
+    # Default values for variables
+    ac_monthly = []
+    dc_monthly = []
+    poa_monthly = []
+    solrad_monthly = []
+    temp_cell_monthly = []
+    temp_ambient_monthly = []
+    latitude = longitude = location_string = elivation = distance_from_site = 'Not available'
+    total_dc_yearly = total_ac_yearly = 0
 
     # Check if the request was successful
     if response.status_code == 200:
@@ -737,7 +748,7 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
-    
+    # cost / Wh 
     return render_template('battery.html')
 
 
