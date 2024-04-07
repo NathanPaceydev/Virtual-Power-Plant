@@ -1,0 +1,841 @@
+from flask import Flask, render_template, request, redirect, url_for, session, Response
+import requests
+import openmeteo_requests
+from scipy.optimize import curve_fit
+import matplotlib.dates as mdates
+import calendar
+import requests_cache
+from retry_requests import retry
+import pandas as pd
+import sys
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.io as pio
+pio.templates.default = "none"
+import csv
+
+import plotly.graph_objs as go
+from plotly.graph_objs import Scatter, Figure
+
+from plotly.subplots import make_subplots
+
+app = Flask(__name__)
+
+app.secret_key = 'your_secret_key_here'
+
+
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    if request.method == 'POST':
+        # Store existing form data in session
+        session['surface_area'] = request.form.get('surfaceArea')
+        session['postal_code'] = request.form.get('postalCode')
+        session['array_type'] = request.form.get('arrayType')
+        session['module_type'] = request.form.get('moduleType')
+        session['tilt'] = request.form.get('tilt')
+
+        # Store the new input for the number of wind turbines
+        session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
+        session['turbineHeight'] = request.form.get('turbineHeight', type=int)
+
+        # Redirect to the solar page
+        return redirect(url_for('solar'))
+
+    return render_template('home.html')
+
+@app.route('/location', methods=['GET','POST'])
+def location():
+    postal_code = session.get('postal_code', 'Not provided')
+    latitude = session.get('latitude', 'Not provided')
+    longitude = session.get('longitude', 'Not provided')
+    location = session.get('location', 'Not provided')
+    elivation = session.get('elivation', 'Not provided')
+    distance = session.get('distance', 'Not provided')
+    
+    return render_template('location.html', location=location, elivation=elivation, distance=distance, latitude=latitude, longitude=longitude, postal_code=postal_code)
+
+
+    
+@app.route('/solar', methods=['GET', 'POST'])
+def solar():
+    # Retrieve form data from session
+    surface_area = session.get('surface_area', 'Not provided')
+    postal_code = session.get('postal_code', 'Not provided')
+    array_type_num = session.get('array_type', 'Not provided')
+    module_type_num = session.get('module_type', 'Not provided')
+    tilt = session.get('tilt', 'Not provided')
+    
+    array_types = {
+        '0': 'Fixed Carport',
+        '1': 'Fixed - Roof Mounted',
+        '2': '1-Axis Tracking',
+        '3': '1-Axis Backtracking',
+        '4': '2-Axis',
+    }
+    
+
+    
+    module_types = {
+        '0': 'Standard',
+        '1': 'Premium',
+        '2': 'Thin Film',
+    }
+    
+    module_efficiencies = {
+    'Standard': 19,
+    'Premium': 21.3,
+    'Thin Film': 18
+    }
+    
+    # convert the array_type and module type back to strings
+    array_type_name = array_types.get(array_type_num, 'Not provided')
+    module_type_name = module_types.get(module_type_num, 'Not provided')
+    
+    # Call PV Watts API
+    # Calculate system capacity
+    efficiency = module_efficiencies.get(module_type_name, 'Unknown efficiency')
+  
+    conversion_factor = 1  # [KW / m^2]
+    system_capacity_kW = float(surface_area) * efficiency/100 * conversion_factor # kW
+    system_capacity_W = system_capacity_kW*1000
+    total_dc_yearly = 0
+    total_ac_yearly = 0
+
+    #array_type_num = array_type_options[array_type]
+    #module_type_num = module_type_options[module_type]
+
+    # Define the URL for the PVWatts V8 API
+    url = "https://developer.nrel.gov/api/pvwatts/v8.json"
+
+    # Specify the parameters for the API request
+    params = {
+        "api_key": "rS4jhBrbjOjG2Rs1d2PZD6HGaIvO1gjDofyabEOV",
+        "azimuth": 180,
+        "system_capacity": system_capacity_kW,
+        "losses": 14.08,
+        "array_type": array_type_num,
+        "module_type": module_type_num,
+        "gcr": 0.4,
+        "dc_ac_ratio": 1.2,
+        "inv_eff": 96.0,
+        "radius": 0,
+        "timeframe": 'hourly',
+        "dataset": "nsrdb",
+        "tilt": float(tilt),
+        "address": postal_code,
+        
+    }
+
+    # Make the GET request to the PVWatts API
+    response = requests.get(url, params=params)
+    
+    
+    # Default values for variables
+    ac_monthly = []
+    dc_monthly = []
+    poa_monthly = []
+    solrad_monthly = []
+    temp_cell_monthly = []
+    temp_ambient_monthly = []
+    latitude = longitude = location_string = elivation = distance_from_site = 'Not available'
+    total_dc_yearly = total_ac_yearly = 0
+
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Parse the JSON response
+        data = response.json()
+
+        # Display outputs
+        ac_monthly = data["outputs"]["ac_monthly"]
+        poa_monthly = data["outputs"]["poa_monthly"]
+        solrad_monthly = data["outputs"]["solrad_monthly"]
+        dc_monthly = data["outputs"]["dc_monthly"]
+        temp_cell_monthly = data["outputs"]["tcell"]
+        temp_ambient_monthly = data["outputs"]["tamb"]
+        station_info = data['station_info']
+        
+        latitude = station_info["lat"]
+        longitude = station_info["lon"]
+        location_string = str(station_info["city"])+', '+str(station_info["state"])+', '+str(station_info["country"])
+        elivation = station_info['elev'] #[m]
+        distance_from_site = station_info['distance']
+        
+        session['latitude'] = latitude
+        session['longitude'] = longitude
+        session['postal_code'] = postal_code
+        session['location'] = location_string
+        session['elivation'] = elivation
+        session['distance'] = distance_from_site
+
+        total_dc_yearly = np.sum(dc_monthly) #[kWh DC]
+        total_ac_yearly = np.sum(ac_monthly) #[kWh AC]
+    else:
+        # Error
+        print(f"Error: Received status code {response.status_code}")
+        print(response.text)  # This might provide more details on the error
+        
+    # Sample data
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+    # Line chart
+    fig1 = px.line(x=months, y=ac_monthly, title="Monthly Solar Power AC Generation", labels={"x": "Month", "y": "Power (kW)"})
+    
+    # Scatter plot
+    fig2 = px.line(x=months, y=dc_monthly, title="Monthly Solar Power DC Generation", labels={"x": "Month", "y": "Power (kW)"})
+    
+    fig3 = px.line(x=months, y=solrad_monthly, title="Solar Radiance Average Monthly", labels={"x": "Month", "y": "Input Radiation Input Radiation (kWh/m²)"})
+
+    # Update traces to change line color to yellow and add other styling
+    fig3.update_traces(line=dict(color='yellow', width=2), mode='lines+markers', marker=dict(color='DarkSlateGrey', size=8, line=dict(width=2, color='DarkSlateGrey')))
+
+    # Plot average monthly cell temperature
+    monthly_averages_cell = [sum(temp_cell_monthly[i:i+730])/730 for i in range(0, len(temp_cell_monthly), 730)]
+    fig4 = px.bar(x=months, y=monthly_averages_cell, title="Average Monthly Cell Temperature", labels={"x": "Month", "y": "Temperature (°C)"}, color_discrete_sequence=['orange'])
+    
+    monthly_averages_ambient = [sum(temp_ambient_monthly[i:i+730])/730 for i in range(0, len(temp_ambient_monthly), 730)]
+    fig5 = px.bar(x=months, y=monthly_averages_ambient, title="Average Monthly Ambient Temperature", labels={"x": "Month", "y": "Temperature (°C)"}, color_discrete_sequence=['blue'])
+
+    
+    # Convert plots to HTML
+    plot1 = fig1.to_html(full_html=False)
+    plot2 = fig2.to_html(full_html=False)
+    plot3 = fig3.to_html(full_html=False)
+    plot4 = fig4.to_html(full_html=False)
+    plot5 = fig5.to_html(full_html=False)
+    
+    
+    
+    # calculate number of solar pannels and the cost associated
+    solar_cost_per_watt = 0.45 # $[CAD] / W
+    solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
+    
+    # calculate the cost of mounts
+    costCarport = 1.57  # approximate $/W per Hayter Group
+    costRoof = 0.410 # approximate $/W per Hayter Group
+
+    if array_type_num == 1:
+        #roof mounted
+        cost_mount = costRoof*system_capacity_W
+    else:
+        # otherwise
+        cost_mount = costCarport*system_capacity_W
+    
+    total_solar_installed_cost = solar_cost+cost_mount
+    
+    # calculate the number of pannels
+    pannel_wattage = 575 #W
+    num_pannels = system_capacity_W / pannel_wattage
+
+    ####### Finical Plots ########
+    projLife = 30 # years
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_ac_yearly
+    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    upfront_cost = total_solar_installed_cost
+    
+    # Calculating yearly revenue for each generation scenario
+    yearly_revenue = np.outer(generation_array, buyback_pricing)
+    
+    # Calculate ROI for each generation and buyback pricing
+    roi = yearly_revenue*projLife / upfront_cost *100
+
+    # Calculate Payback Period
+    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    
+    
+    
+    # Creating Plotly plot
+    data = []
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=yearly_revenue[i], mode='lines', name=f'Yearly Gen: {gen:.2f} kWh')
+        data.append(trace)
+
+    layout = go.Layout(
+        title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        legend=dict(title='Yearly Generation'),
+    )
+
+    fig6 = go.Figure(data=data, layout=layout)
+
+    # Encoding plot to HTML
+    solar_rev_plot = fig6.to_html(full_html=False)
+    
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=roi[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='ROI for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='ROI [%]'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig7 = go.Figure(data=traces, layout=layout)
+    # Encoding plot to HTML
+    solar_ROI_plot = fig7.to_html(full_html=False)
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=payback_period[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='Payback Period for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Payback Period (Years)'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig8 = go.Figure(data=traces, layout=layout)
+    solar_payback_plot = fig8.to_html(full_html=False)
+
+    
+    return render_template(
+        'solar.html', 
+        solar_ROI_plot=solar_ROI_plot,
+        solar_payback_plot=solar_payback_plot,
+        solar_rev_plot=solar_rev_plot,
+        total_solar_installed_cost=total_solar_installed_cost,
+        cost_mount=cost_mount,
+        num_pannels=num_pannels, 
+        solar_cost=solar_cost, 
+        surface_area=surface_area, 
+        postal_code=postal_code, 
+        array_type=array_type_name, 
+        module_type=module_type_name, 
+        tilt=tilt, 
+        system_capacity=system_capacity_kW, 
+        total_dc_yearly=total_dc_yearly, 
+        total_ac_yearly=total_ac_yearly, 
+        plot1=plot1, 
+        plot2=plot2, 
+        plot3=plot3, 
+        plot4=plot4, 
+        plot5=plot5
+        )
+
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
+
+
+
+@app.route('/wind', methods=['GET', 'POST'])
+def wind():
+    # fetch user input
+    # Retrieve latitude and longitude from session
+    latitude = session.get('latitude', 'Not provided')
+    longitude = session.get('longitude', 'Not provided')
+    postal_code = session.get('postal_code', 'Not provided')
+    num_turbines = session.get('num_turbines', 'Not provided')
+    turbine_height = session.get('turbineHeight', 'Not provided')
+
+    # Setup the Open-Meteo API client with cache and retry on error
+    cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
+    retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
+    openmeteo = openmeteo_requests.Client(session = retry_session)
+
+    
+    # The order of variables in hourly or daily is important to assign them correctly below
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "start_date": "2022-01-01",
+        "end_date": "2022-12-31",
+        "hourly": ["temperature_2m", "relative_humidity_2m", "surface_pressure", "wind_speed_10m", "wind_speed_100m", "wind_direction_10m", "wind_direction_100m"]
+    }
+    responses = openmeteo.weather_api(url, params=params)
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+   
+
+    # Process hourly data. The order of variables needs to be the same as requested.
+    hourly = response.Hourly()
+    hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
+    hourly_relative_humidity_2m = hourly.Variables(1).ValuesAsNumpy()
+    hourly_surface_pressure = hourly.Variables(2).ValuesAsNumpy()
+    hourly_wind_speed_10m = hourly.Variables(3).ValuesAsNumpy()
+    hourly_wind_speed_100m = hourly.Variables(4).ValuesAsNumpy()
+    hourly_wind_direction_10m = hourly.Variables(5).ValuesAsNumpy()
+    hourly_wind_direction_100m = hourly.Variables(6).ValuesAsNumpy()
+    
+    hourly_data = {
+        "date": pd.date_range(
+            start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+            end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True) - pd.Timedelta(seconds=1),  # Adjust end time
+            freq=pd.Timedelta(seconds=hourly.Interval())
+        )
+    }
+
+    hourly_data["temperature_2m"] = hourly_temperature_2m
+    hourly_data["relative_humidity_2m"] = hourly_relative_humidity_2m
+    hourly_data["surface_pressure"] = hourly_surface_pressure
+    hourly_data["wind_speed_10m"] = hourly_wind_speed_10m
+    hourly_data["wind_speed_100m"] = hourly_wind_speed_100m
+    hourly_data["wind_direction_10m"] = hourly_wind_direction_10m
+    hourly_data["wind_direction_100m"] = hourly_wind_direction_100m
+
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    
+    
+    # Convert wind speeds from km/h to m/s
+    hourly_data["wind_speed_10m"] = hourly_data["wind_speed_10m"] / 3.6
+    hourly_data["wind_speed_100m"] = hourly_data["wind_speed_100m"] / 3.6
+
+    # Add the converted wind speeds to the DataFrame
+    hourly_dataframe = pd.DataFrame(data=hourly_data)
+
+    # Convert 'date' to a datetime index in the DataFrame
+    hourly_dataframe.set_index('date', inplace=True)
+
+    ### Montly Average Plotting ###
+    
+    # Extract month from the index (date)
+    hourly_dataframe['month'] = hourly_dataframe.index.month
+
+    # Group by month and calculate the mean wind speed for plotting
+    monthly_wind_speed_10m = hourly_dataframe.groupby('month')['wind_speed_10m'].mean()
+    monthly_wind_speed_100m = hourly_dataframe.groupby('month')['wind_speed_100m'].mean()
+    
+    
+    # Create a new DataFrame for Plotly
+    monthly_wind_speed_df = pd.DataFrame({
+        'Month': monthly_wind_speed_10m.index,
+        'Wind Speed at 10m (m/s)': monthly_wind_speed_10m.values,
+        'Wind Speed at 100m (m/s)': monthly_wind_speed_100m.values
+    })
+
+    # Plotting with Plotly Express
+    fig1 = px.line(monthly_wind_speed_df, x='Month', y=['Wind Speed at 10m (m/s)', 'Wind Speed at 100m (m/s)'],
+                  labels={'value': 'Wind Speed (m/s)', 'variable': 'Measurement'}, title='Monthly Average Wind Speeds')
+
+    # Heights and average wind speeds for curve fitting
+    heights = np.array([10, 100])  # Heights in meters
+    average_wind_speeds = np.array([
+        monthly_wind_speed_10m.mean(),
+        monthly_wind_speed_100m.mean()
+    ])
+
+    # Define the logarithmic wind profile function
+    def log_wind_profile(z, a, b):
+        return a + b * np.log(z)
+
+    # Perform curve fitting
+    try:
+        popt, pcov = curve_fit(log_wind_profile, heights, average_wind_speeds)
+        
+        # Generate heights for the fitted curve visualization
+        fitted_heights = np.linspace(10, 100, 100)  # From 10m to 100m
+        fitted_speeds = log_wind_profile(fitted_heights, *popt)
+
+        # Create Plotly figure for the fitted curve and original data
+        fig2 = px.scatter(x=heights, y=average_wind_speeds, labels={'x': 'Height (m)', 'y': 'Wind Speed (m/s)'}, title='Wind Speed vs. Height with Logarithmic Fit')
+        fig2.add_scatter(x=fitted_heights, y=fitted_speeds, mode='lines', name=f'Fitted: v = {popt[0]:.2f} + {popt[1]:.2f} * ln(z)')
+        
+    except Exception as e:
+        print("An error occurred during curve fitting:", e)
+        fig2 = None
+    
+    # Convert Plotly figures to HTML
+    plot1 = fig1.to_html(full_html=False) if 'fig1' in locals() else None
+    plot2 = fig2.to_html(full_html=False) if fig2 else None
+    
+    ### Monthly Specific Plotting ###
+    # Sample wind speeds at 10m and 100m for demonstration
+    # These should be replaced with your actual data arrays
+    wind_speed_10m = hourly_data["wind_speed_10m"]
+    wind_speed_100m = hourly_data["wind_speed_100m"]
+    
+    # Define the heights for the wind speeds we have and the ones we want to interpolate
+    measured_heights = np.array([10, 100])
+    interpolate_heights = np.array([18, 24, 30, 36, 55, 80])
+    interpolated_speeds = {f'wind_speed_{h}m': [] for h in interpolate_heights}
+
+    # Iterate over each hour
+    for i in range(len(wind_speed_10m)):
+        # Current wind speeds at 10m and 100m for the hour
+        current_speeds = np.array([wind_speed_10m[i], wind_speed_100m[i]])
+        
+        # Fit the curve for this hour's data
+        popt, _ = curve_fit(log_wind_profile, measured_heights, current_speeds)
+        
+        # Use the obtained fit to calculate speeds at desired heights
+        for h in interpolate_heights:
+            interpolated_speed = log_wind_profile(h, *popt)
+            interpolated_speeds[f'wind_speed_{h}m'].append(interpolated_speed)
+            
+    for height, speeds in interpolated_speeds.items():
+        hourly_data[height] = speeds
+
+    # Convert hourly_data to a DataFrame
+    hourly_dataframe = pd.DataFrame(data=hourly_data)
+    
+    
+    # Check if 'date' is already the index or a column in the DataFrame
+    if 'date' in hourly_dataframe.columns:
+        # Convert 'date' column to datetime if it exists as a column
+        hourly_dataframe['date'] = pd.to_datetime(hourly_dataframe['date'])
+        # Set 'date' as the DataFrame index
+        hourly_dataframe.set_index('date', inplace=True)
+    elif not isinstance(hourly_dataframe.index, pd.DatetimeIndex):
+        # If 'date' is not a column and the index is not already a DatetimeIndex, attempt conversion
+        hourly_dataframe.index = pd.to_datetime(hourly_dataframe.index)
+
+    ## make the user select a month defualt it to JAN
+    selected_month = 1  # Default to January
+    ## Get user request ##
+    if request.method == 'POST':
+        selected_month = int(request.form.get('month_select', selected_month))
+    
+    # Filter the DataFrame for January
+    month_data = hourly_dataframe[hourly_dataframe.index.month == selected_month]
+    
+    
+    # Ensure january_data's index is in a compatible format (datetime)
+    dates = month_data.index  # No need to convert if index is already datetime
+
+    # Create a subplot
+    fig3 = make_subplots(rows=1, cols=1)
+
+    # Plotting measured wind speeds at 10m and 100m
+    fig3.add_trace(go.Scatter(x=dates, y=month_data['wind_speed_10m'], mode='lines', name='10m (measured)', line=dict(color='blue')))
+    fig3.add_trace(go.Scatter(x=dates, y=month_data['wind_speed_100m'], mode='lines', name='100m (measured)', line=dict(color='red')))
+
+    # Plotting interpolated wind speeds
+    for height in ['18m', '24m', '30m', '36m', '55m', '80m']:
+        fig3.add_trace(go.Scatter(x=dates, y=month_data[f'wind_speed_{height}'], mode='lines', name=f'{height} (interpolated)', line=dict(dash='dash')))
+
+
+    
+    # Update plot layout
+    fig3.update_layout(
+        title='Hourly Wind Speeds for January by Height',
+        xaxis_title='Date',
+        yaxis_title='Wind Speed (m/s)',
+        legend_title='Wind Speed',
+        xaxis=dict(
+            tickangle=45,
+            nticks=10  # Optional: Adjust the number of x-axis labels
+        )
+    )
+    
+    # update month name title
+    month_name = calendar.month_name[selected_month]
+    months = {i: calendar.month_name[i] for i in range(1, 13)}
+
+    fig3.update_layout(title=f'Hourly Wind Speeds for {month_name} by Height')
+
+    # Convert Plotly figure to HTML for Flask rendering
+    hourly_month_plot_html = fig3.to_html(full_html=False)
+    
+    capacity_factor = 0.90 # [%] efficiency rating
+    capicity_per_turbine = 100 #[kW]
+    total_system_capacity_kw = num_turbines*capacity_factor*capicity_per_turbine
+    
+    
+    ############### hourly averaged #################
+    # Ensure 'hour' column is correct based on the 'date' index
+    hourly_dataframe['hour'] = hourly_dataframe.index.hour
+    # Specify the wind speed heights you have in your DataFrame
+    wind_speed_heights = ['wind_speed_10m','wind_speed_55m', 'wind_speed_100m']
+
+    # Initialize a dictionary to hold our summary stats for each height
+    hourly_stats = {height: {'mean': [], 'std': []} for height in wind_speed_heights}
+
+    # Calculate mean and std for each height and hour
+    for height in wind_speed_heights:
+        for hour in range(24):
+            # Filter data for the current hour and height
+            hourly_data = hourly_dataframe[hourly_dataframe['hour'] == hour][height]
+            # Calculate mean and std, append to the respective lists
+            hourly_stats[height]['mean'].append(hourly_data.mean())
+            hourly_stats[height]['std'].append(hourly_data.std())
+
+    # Initialize a new Plotly figure for the hourly wind speed statistics
+    stat_fig = Figure()
+
+    # Add traces for each height with error bars
+    for height in wind_speed_heights:
+        stat_fig.add_trace(
+            Scatter(
+                x=list(range(24)),
+                y=hourly_stats[height]['mean'],
+                error_y=dict(
+                    type='data', # value of error bar given in data coordinates
+                    array=hourly_stats[height]['std'],
+                    visible=True
+                ),
+                name=height
+            )
+        )
+
+    # Update layout of the figure
+    stat_fig.update_layout(
+        title='Average Hourly Wind Speed for Each Height with Error Bars',
+        xaxis_title='Hour of Day',
+        yaxis_title='Wind Speed (m/s)',
+        legend_title='Height',
+        xaxis=dict(tickvals=list(range(24)), ticktext=[f"{h}:00" for h in range(24)])
+    )
+
+    # Convert the figure to HTML
+    stat_plot_html = stat_fig.to_html(full_html=False)
+    
+    ######## Wind Generation ##########
+    # see wind speed output relationship code to see how values were derived
+    # funtion to take in houly wind speed and calculate the kW produced in that hour
+    def wind_output_fit(x_wind_speed):
+        # Use a vectorized approach to handle an array of wind speeds
+        output = np.where((x_wind_speed > 11) | (x_wind_speed < 3), 0, 51 + (119 / np.pi) * np.arctan(0.8 * x_wind_speed - 6))
+        return output
+
+    # Apply the function to calculate the power output for each hour
+    specific_wind_speeds = hourly_dataframe['wind_speed_'+str(turbine_height)+'m']
+    hourly_dataframe['power_output'] = wind_output_fit(specific_wind_speeds)
+    
+    average_yearly_speed = specific_wind_speeds.mean()
+
+    # Assume `num_turbines` is defined somewhere in your code
+    # Calculate total power generation for each hour
+    hourly_dataframe['total_power_gen'] = hourly_dataframe['power_output'] * num_turbines * capacity_factor
+
+    # Sum up to find the total yearly generation
+    total_yearly_generation = hourly_dataframe['total_power_gen'].sum()
+
+    # Aggregate this hourly data by month
+    monthly_generation = hourly_dataframe.resample('M').sum()['total_power_gen']
+
+    # Plot the monthly generation
+    wind_month_fig = go.Figure()
+    wind_month_fig.add_trace(go.Bar(x=monthly_generation.index.month, y=monthly_generation.values))
+
+    # Update plot layout
+    wind_month_fig.update_layout(
+        title='Monthly Wind Power Generation',
+        xaxis_title='Month',
+        yaxis_title='Total Power Generation (kWh)',
+        xaxis=dict(tickvals=list(range(1, 13)), ticktext=list(calendar.month_name[1:])),
+        yaxis=dict(title='Total Power Generation (kWh)')
+    )
+
+    # You can convert this figure to HTML for Flask as before
+    monthly_gen_plot_html = wind_month_fig.to_html(full_html=False)
+    
+    ## calculate upfront cost for wind ##
+    cost_per_turbine = 165709.29 #[CAD]
+    wind_cost = num_turbines*cost_per_turbine
+
+
+    ####### Finical Plots ########
+    projLife = 30 # years
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_yearly_generation
+    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    upfront_cost = wind_cost
+    
+    # Calculating yearly revenue for each generation scenario
+    yearly_revenue = np.outer(generation_array, buyback_pricing)
+    
+    # Calculate ROI for each generation and buyback pricing
+    roi = yearly_revenue*projLife / upfront_cost *100
+
+    # Calculate Payback Period
+    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    
+    
+    
+    # Creating Plotly plot
+    data = []
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=yearly_revenue[i], mode='lines', name=f'Yearly Gen: {gen:.2f} kWh')
+        data.append(trace)
+
+    layout = go.Layout(
+        title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        legend=dict(title='Yearly Generation'),
+    )
+
+    fig6 = go.Figure(data=data, layout=layout)
+
+    # Encoding plot to HTML
+    wind_rev_plot = fig6.to_html(full_html=False)
+    
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=roi[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='ROI for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='ROI [%]'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig7 = go.Figure(data=traces, layout=layout)
+    # Encoding plot to HTML
+    wind_ROI_plot = fig7.to_html(full_html=False)
+    
+    # Create empty list to store Plotly traces
+    traces = []
+
+    # Loop through each generation scenario and create a trace
+    for i, gen in enumerate(generation_array):
+        trace = go.Scatter(x=buyback_pricing, y=payback_period[i], mode='lines', name=f'Yearly Gen: {generation_array[i]:.2f} kWh')
+        traces.append(trace)
+
+    # Define layout
+    layout = go.Layout(
+        title='Payback Period for Different Yearly Generations Compared to Buyback Pricing',
+        xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
+        yaxis=dict(title='Payback Period (Years)'),
+        legend=dict(title='Yearly Generation')
+    )
+
+    # Create figure and add traces
+    fig8 = go.Figure(data=traces, layout=layout)
+    wind_payback_plot = fig8.to_html(full_html=False)
+
+
+    # Pass all plots to the template
+    return render_template(
+        'wind.html',
+        wind_ROI_plot=wind_ROI_plot,
+        wind_rev_plot=wind_rev_plot,
+        wind_payback_plot=wind_payback_plot,
+        average_yearly_speed=average_yearly_speed,
+        wind_cost=wind_cost,
+        total_yearly_generation=total_yearly_generation,
+        monthly_gen_plot_html=monthly_gen_plot_html,
+        turbine_height=turbine_height,
+        total_system_capacity_kw=total_system_capacity_kw,
+        num_turbines=num_turbines,
+        months=months,
+        hourly_wind_plot=hourly_month_plot_html,
+        stat_plot=stat_plot_html, # pass the new plot to the template
+        plot1=plot1,
+        plot2=plot2,
+        postal_code=postal_code,
+        latitude=latitude,
+        longitude=longitude
+    )
+
+
+@app.route('/battery', methods=['GET','POST'])
+def battery():
+    # cost / Wh 
+    return render_template('battery.html')
+
+
+@app.route('/pricing', methods=['GET','POST'])
+def pricing():
+    # Load and clean the data
+    file_path = './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    data = pd.read_csv(file_path, skiprows=2, header=None)
+    data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+    data_cleaned = data[['Date', 'Hour', 'HOEP']].dropna()
+    data_cleaned = data_cleaned[data_cleaned['Hour'] != 'Hour']
+    data_cleaned['Hour'] = data_cleaned['Hour'].astype(int) - 1
+    data_cleaned['Datetime'] = pd.to_datetime(data_cleaned['Date']) + pd.to_timedelta(data_cleaned['Hour'], unit='h')
+    data_cleaned['HOEP'] = pd.to_numeric(data_cleaned['HOEP'], errors='coerce')
+    data_cleaned.dropna(subset=['HOEP'], inplace=True)
+
+    # Plotting with Plotly
+    hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $)'})
+    hourly_price_fig.update_xaxes(tickangle=45)
+
+    # Convert plot to HTML
+    hourly_price_plot = hourly_price_fig.to_html(full_html=False)
+    
+    # Define the file paths
+    file_paths = {
+        '2021': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2021_v395.csv',
+        '2022': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2022_v396.csv',
+        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    }
+
+    hourly_avg_all_years = []
+    traces = []
+
+    for year, file_path in file_paths.items():
+        data = pd.read_csv(file_path, skiprows=2)
+        data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+        data = data[['Date', 'Hour', 'HOEP']].dropna()
+        data = data[data['Hour'].apply(lambda x: x.isnumeric())]
+        data['Hour'] = data['Hour'].astype(int) - 1
+        data['HOEP'] = pd.to_numeric(data['HOEP'], errors='coerce').dropna()
+
+        hourly_avg = data.groupby('Hour')['HOEP'].mean().reset_index()
+        hourly_avg_all_years.append(hourly_avg.set_index('Hour'))
+
+        trace = go.Scatter(x=hourly_avg['Hour'], y=hourly_avg['HOEP'], mode='lines', name=f'Average HOEP {year}')
+        traces.append(trace)
+
+    combined_hourly_avg = pd.concat(hourly_avg_all_years, axis=1)
+    combined_hourly_mean = combined_hourly_avg.mean(axis=1)
+    combined_hourly_std = combined_hourly_avg.std(axis=1)
+
+    trace_combined = go.Scatter(x=combined_hourly_mean.index, y=combined_hourly_mean, mode='lines+markers', name='Total Average HOEP',
+                                 error_y=dict(type='data', array=combined_hourly_std, visible=True))
+    traces.append(trace_combined)
+
+    # Define the layout
+    layout = go.Layout(title='Average Hourly Energy Prices (HOEP) for Each Hour Over Years with Error Bars',
+                       xaxis=dict(title='Hour of the Day'),
+                       yaxis=dict(title='Average HOEP (in $)'),
+                       showlegend=True)
+
+    # Create figure and convert to HTML
+    hourly_avg_price_fig = go.Figure(data=traces, layout=layout)
+    hourly_avg_price_plot = hourly_avg_price_fig.to_html(full_html=False)
+
+    return render_template('pricing.html', hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
+
+
+@app.route('/download-csv')
+def download_csv():
+    data = [
+        ["Parameter", "Value"],
+        ["System Capacity (kW)", session.get('system_capacity', 'Not provided')],
+        ["Total Yearly DC (kWh)", session.get('total_dc_yearly', 'Not provided')],
+        ["Total Yearly AC (kWh)", session.get('total_ac_yearly', 'Not provided')],
+        # Add more data rows as needed
+    ]
+
+    # Create a generator to stream the CSV data
+    def generate_csv():
+        line = csv.writer(sys.stdout)
+        for row in data:
+            yield ','.join(row) + '\n'
+
+    # Return the streamed response
+    return Response(generate_csv(), mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=solar_data.csv"})
+
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Home Page{% endblock %}
+
+{% block content %}
+
+    <!-- Popup Overlay -->
+    <div id="loadingOverlay" class="overlay" style="display:none;">
+        <div class="popup">
+            <div class="loader"></div>
+            <p>Getting your specific location data from NREL databases. One moment...</p>
+        </div>
+    </div>
+
+    <style>
+        /* Custom styles for the submit button */
+        input[type="submit"] {
+            font-size: 20px; /* Larger font size */
+            padding: 10px 20px; /* Larger padding */
+            cursor: pointer; /* Hand cursor on hover */
+        }
+
+        /* Hidden by default */
+        .loading-message {
+            display: none;
+            margin-top: 20px;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Popup */
+        .popup {
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        /* Solar Panel Loader */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 5px solid #444;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        table, th, td {
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        
+        th, td {
+            padding: 8px;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+
+    <h1>Virtual Power Plant Toolkit</h1>
+
+    <form method="post">
+        <h3>Solar Inputs</h3>
+        <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
+        <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
+
+        <label for="postalCode">Postal Code:</label>
+        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
+
+        <label for="arrayType">Array Type:</label>
+        <select id="arrayType" name="arrayType">
+            <option value=0>Fixed Carport</option>
+            <option value=1>Fixed - Roof Mounted</option>
+            <option value=2>1-Axis Tracking</option>
+            <option value=3>1-Axis Backtracking</option>
+            <option value=4>2-Axis</option>
+        </select><br><br>
+
+        <label for="moduleType">Module Type:</label>
+        <select id="moduleType" name="moduleType">
+            <option value=0>Standard</option>
+            <option value=1>Premium</option>
+            <option value=2>Thin Film</option>
+        </select><br><br>
+
+        <label for="tilt">Tilt (0 to 90 degrees):</label>
+        <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
+        <output>45</output><br><br>
+        
+        <h3>Wind Inputs</h3>
+        <label for="numTurbines">Number of Wind Turbines:</label>
+        <input type="number" id="numTurbines" name="numTurbines" min="1" step="1">
+        <br><br>
+        
+        <label for="turbineHeight">Turbine Height:</label>
+        <select id="turbineHeight" name="turbineHeight">
+            <option value="18">18m</option>
+            <option value="24">24m</option>
+            <option value="30">30m</option>
+            <option value="36">36m</option>
+        </select>
+        <br><br>
+
+        <input type="submit" value="Submit">
+    </form>
+
+    <br><br><br><br>
+    <h2>Equipment details</h2>
+    <!-- Add a table here with the details of each equipment selected, solar pannels, wind turbine, battery-->
+    <table>
+        <thead>
+            <tr>
+                <th>Equipment Type</th>
+                <th>Manufacturing Company</th>
+                <th>Model</th>
+                <th>Capacity per Unit</th>
+                <th>Efficiency</th>
+                <th>Cost [CAD]</th>
+                <th>Data Sheet</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Solar Panels</td>
+                <td>Bauer Solartechnik</td>
+                <td>PREMIUM PROTECT BS-575-144M10NHB-GG</td>
+                <td>575W</td>
+                <td>22.26%</td>
+                <td>$0.45 / W </td>
+                <td><a href="{{ url_for('static', filename='datasheets/Bauer-Solar-CANSOLAR (1).pdf') }}" target="_blank">Data Sheet PDF</a></td>
+            </tr>
+
+            <tr>
+                <td>Wind Turbine</td>
+                <td>Aeolos</td>
+                <td>Model WT456</td>
+                <td>100kW</td>
+                <td>90.0%</td>
+                <td>$165,709.29 / Unit</td>
+
+                <td>
+                    <a href="{{ url_for('static', filename='datasheets/Aeolos-H 100kW Brochure 8012024 (1).pdf') }}" target="_blank">Brochure PDF</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/Aeolos H 100kW on grid and off grid price list 2012024 (1).pdf') }}" target="_blank">Pricing PDF</a>
+                </td>
+                
+            </tr>
+
+            <tr>
+                <td>Battery</td>
+                <td>Tesla Energy</td>
+                <td>Megapack 1462965-XX-Y</td>
+                <td>1,927 kW / 3,854 kWh</td>
+                <td>92.0%</td>
+                <td>$2,883,732.34 / Unit</td>
+                <td>
+                    <a href="https://www.tesla.com/megapack/design" target="_blank">Megapack Info Page</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/Ficha-Tecnica-Mega-Pack (1).pdf') }}" target="_blank">Data Sheet PDF</a>
+                </td>
+            </tr>
+            <tr>
+                <td>Solar Roof Mounts Installed</td>
+                <td>OPSUN</td>
+                <td>SunRail Performance (Landscape)</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>$0.41 / W</td>
+                <td>
+                    <a href="{{ url_for('static', filename='datasheets/brochure-performance.pdf') }}" target="_blank">Brochure PDF</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/sunrail-installation-manual.pdf') }}" target="_blank">Installation PDF</a>
+                </td>
+            </tr>
+            <tr>
+                <td>Solar Carport Canopies Installed</td>
+                <td>OPSUN</td>
+                <td>SunPark Commercial</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>$1.57 / W</td>
+                <td>
+                    <a href="{{ url_for('static', filename='datasheets/brochure-sunpark-comercial.pdf') }}" target="_blank">Brochure PDF</a>
+                    <p> </p>
+                    <a href="{{ url_for('static', filename='datasheets/sunpark-installation-manual.pdf') }}" target="_blank">Installation PDF</a>
+                </td>
+            </tr>
+            <tr>
+                <td>Pad Mount Transformer</td>
+                <td>Larson Electronics</td>
+                <td>480V Delta Primary, 21600Y/12470 Grounded Wye Secondary - KNAN/Bell Green</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>$388416.66 / Unit</td>
+                <td>
+                    <a href="https://www.larsonelectronics.com/product/282374/5-mva-pad-mount-transformer-480v-delta-primary-21600y-12470-grounded-wye-secondary-knan-bell-green?utm_campaign=20417422929&utm_source=google&utm_medium=cpc&utm_content=&keyword=&adgroupid=&gad_source=1&gclid=Cj0KCQiAxOauBhCaARIsAEbUSQTmYmdHeF33ObE_SgbDpLif5siC51MRq3I2RXI3Mlt_F6e2AvHPcPkaAg3wEALw_wcB" target="_blank">Transformer Info Page</a>
+                </td>
+            </tr>
+
+            
+        </tbody>
+    </table>
+    <br><br>
+    
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            //e.preventDefault();  // Prevent the default form submission
+    
+            // Show the loading overlay
+            document.getElementById('loadingOverlay').style.display = 'flex';
+    
+        });
+    </script>
+    
+
+{% endblock %}
+

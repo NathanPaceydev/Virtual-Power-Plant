@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Wind Data{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between;">
+
+    <!-- Solar Input Data Column -->
+    <div style="width: 48%;">
+        <h1>Wind Input Data</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Number of Aeolos Turbines</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ num_turbines | round(0) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Turbine height (m)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ turbine_height | round(0) }}</td>
+            </tr>
+           
+          
+           
+            
+        </table>
+    </div>
+
+    <!-- Wind System Outputs Column -->
+    <div style="width: 48%;">
+        <h1>Wind System Outputs</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_system_capacity_kw | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Wind Generation (kWh)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ total_yearly_generation | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Average Wind Speeds (m/s)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ average_yearly_speed | round(3) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Upfront Cost [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${{ wind_cost | round(2) }}</td>
+            </tr>
+            
+        </table>
+    </div>
+</div>    
+<br>
+
+<h1>Wind Energy Insights</h1>
+
+
+<div>{{ plot1|safe }}</div>
+<div>{{ plot2|safe }}</div>
+<br>
+<h2>Select a Month to Display Hourly Wind Speeds</h2>
+<form action="{{ url_for('wind') }}" method="post">
+    <label for="month_select">Select a month:</label>
+    <select name="month_select" id="month_select">
+        {% for num, name in months.items() %}  <!-- Corrected line -->
+            <option value="{{ num }}">{{ name }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Show Data</button>
+</form>
+    <div>{{ hourly_wind_plot|safe }}</div>
+<br>
+<br>
+
+<!-- Hourly Averaged plot-->
+<div>{{ stat_plot|safe }}</div>
+<br><br>
+<!-- Specific Choosen wind height -->
+<div>{{ monthly_gen_plot_html|safe }}</div>
+
+
+<br><br>
+<h1>Wind Financial Analysis </h1>
+<div>{{ wind_payback_plot|safe }}</div>
+<br>
+<div>{{ wind_ROI_plot|safe }}</div>
+<div>{{ wind_rev_plot|safe }}</div>
+
+
+{% endblock %}
+
