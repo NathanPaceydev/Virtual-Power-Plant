@@ -30,14 +30,19 @@ def home():
     if request.method == 'POST':
         # Store existing form data in session
         session['surface_area'] = request.form.get('surfaceArea')
-        session['postal_code'] = request.form.get('postalCode')
         session['array_type'] = request.form.get('arrayType')
         session['module_type'] = request.form.get('moduleType')
+        session['panel_size'] = request.form.get('panelSize')
+        session['cost_panels'] = request.form.get('costPanels')
+        session['cost_roof_inst'] = request.form.get('roofInst')
+        session['cost_carport_inst'] = request.form.get('carportInst')
         session['tilt'] = request.form.get('tilt')
+        session['postal_code'] = request.form.get('postalCode')
 
         # Store the new input for the number of wind turbines
         session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
         session['turbineHeight'] = request.form.get('turbineHeight', type=int)
+        session['cost_wind'] = request.form.get('costWind')
 
         # Redirect to the solar page
         return redirect(url_for('solar'))
@@ -61,10 +66,14 @@ def location():
 def solar():
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
-    postal_code = session.get('postal_code', 'Not provided')
+    panel_size = session.get('panel_size', 'Not provided')
+    cost_panels = session.get('cost_panels', 'Not provided')
+    cost_roof_inst = session.get('cost_roof_inst', 'Not provided')
+    cost_carport_inst = session.get('cost_carport_inst', 'Not provided')
     array_type_num = session.get('array_type', 'Not provided')
     module_type_num = session.get('module_type', 'Not provided')
     tilt = session.get('tilt', 'Not provided')
+    postal_code = session.get('postal_code', 'Not provided')
     
     array_types = {
         '0': 'Fixed Carport',
@@ -207,12 +216,12 @@ def solar():
     
     
     # calculate number of solar pannels and the cost associated
-    solar_cost_per_watt = 0.45 # $[CAD] / W
+    solar_cost_per_watt = cost_panels # $[CAD] / W
     solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
     
     # calculate the cost of mounts
-    costCarport = 1.57  # approximate $/W per Hayter Group
-    costRoof = 0.410 # approximate $/W per Hayter Group
+    costCarport = cost_carport_inst  # approximate $/W per Hayter Group
+    costRoof = cost_roof_inst # approximate $/W per Hayter Group
 
     if array_type_num == 1:
         #roof mounted
@@ -224,10 +233,10 @@ def solar():
     total_solar_installed_cost = solar_cost+cost_mount
     
     # calculate the number of pannels
-    pannel_wattage = 575 #W
+    pannel_wattage = panel_size #W
     num_pannels = system_capacity_W / pannel_wattage
 
-    ####### Finical Plots ########
+    ####### Financial Plots ########
     projLife = 30 # years
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_ac_yearly
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])

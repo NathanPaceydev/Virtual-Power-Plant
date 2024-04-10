@@ -95,9 +95,6 @@
         <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
         <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
 
-        <label for="postalCode">Postal Code:</label>
-        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
-
         <label for="arrayType">Array Type:</label>
         <select id="arrayType" name="arrayType">
             <option value=0>Fixed Carport</option>
@@ -114,9 +111,30 @@
             <option value=2>Thin Film</option>
         </select><br><br>
 
+        <label for="panelSize">Cost of Panels [W]:</label>
+        <input type="number" id="panelSize" name="panelSize"><br><br>
+        <p>*NOTE* CANSOLAR panel size: 575 W</p>
+
+        <label for="costPanels">Cost of Panels [$CAD/W]:</label>
+        <input type="number" id="costPanels" name="costPanels"><br><br>
+        <p>*NOTE* CANSOLAR 575 W panel cost: 0.40-0.45 [$CAD/W]</p>
+
+        <label for="roofInst">Cost of Roof Installation [$CAD/W]:</label>
+        <input type="number" id="roofInst" name="roofInst"><br><br>
+        <p>*NOTE* OPSUN performance (bifacial panels) rooftop installation cost: 0.32-0.41 [$CAD/W]</p>
+        <p>OPSUN budget (darker areas) rooftop installation: 0.23-0.29 [$CAD/W]</p>
+
+        <label for="carportInst">Cost of Carport Installation [$CAD/W]:</label>
+        <input type="number" id="carportInst" name="carportInst"><br><br>
+        <p>*NOTE* The Hayter Group carport installation approx.: 10x rooftop installation [$CAD/W]</p>
+        <p>OPSUN carport installation cost: 1.30-1.57 [$CAD/W] (foundation and installation excluded)</p>
+
         <label for="tilt">Tilt (0 to 90 degrees):</label>
         <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
         <output>45</output><br><br>
+
+        <label for="postalCode">Postal Code:</label>
+        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
         
         <h3>Wind Inputs</h3>
         <label for="numTurbines">Number of Wind Turbines:</label>
