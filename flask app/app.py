@@ -83,9 +83,9 @@ def solar():
     }
     
     module_efficiencies = {
-    'Standard': 19,
-    'Premium': 21.3,
-    'Thin Film': 18
+    'Standard': 21.7,
+    'Premium': 22.26,
+    'Thin Film': 19.3
     }
     
     # convert the array_type and module type back to strings
@@ -204,24 +204,32 @@ def solar():
     plot4 = fig4.to_html(full_html=False)
     plot5 = fig5.to_html(full_html=False)
     
-    
-    
+    # adjust solar cost based on choice
+    if module_type_num == 1:
+        solar_cost_per_watt = 0.45 # $[CAD] / W 
+    elif module_type_num == 0:
+        solar_cost_per_watt = 0.56
+    else:
+        solar_cost_per_watt = 1.54
     # calculate number of solar pannels and the cost associated
-    solar_cost_per_watt = 0.45 # $[CAD] / W
+    
     solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
     
     # calculate the cost of mounts
     costCarport = 1.57  # approximate $/W per Hayter Group
     costRoof = 0.410 # approximate $/W per Hayter Group
-
-    if array_type_num == 1:
-        #roof mounted
-        cost_mount = costRoof*system_capacity_W
-    else:
-        # otherwise
-        cost_mount = costCarport*system_capacity_W
     
-    total_solar_installed_cost = solar_cost+cost_mount
+    # ADJUST MOUNT COST BASED ON TYPE
+    if array_type_num == 0:
+        cost_mount = 1.57
+    elif array_type_num == 1:
+        # otherwise
+        cost_mount = 0.410
+    elif array_type_num ==2:
+        cost_mount = 0.410
+        
+    cost_mount_total = cost_mount*system_capacity_W
+    total_solar_installed_cost = solar_cost+cost_mount_total
     
     # calculate the number of pannels
     pannel_wattage = 575 #W
@@ -311,7 +319,7 @@ def solar():
         solar_payback_plot=solar_payback_plot,
         solar_rev_plot=solar_rev_plot,
         total_solar_installed_cost=total_solar_installed_cost,
-        cost_mount=cost_mount,
+        cost_mount=cost_mount_total,
         num_pannels=num_pannels, 
         solar_cost=solar_cost, 
         surface_area=surface_area, 
