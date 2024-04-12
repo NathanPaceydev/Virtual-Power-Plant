@@ -810,8 +810,11 @@ def battery():
 
         # Plot the data
         label = os.path.basename(file_path).replace('.csv', '')
-        fig.add_trace(go.Scatter(x=data_array[:, 0], y=data_array[:, 1], mode='markers', name=label))
-        fig.add_trace(go.Scatter(x=new_x, y=new_y, mode='lines', name=f'{label} Interpolation'))
+        # Choose a color for the current data set
+        color = np.random.choice(range(255), size=3)
+        color_css = f'rgb({color[0]}, {color[1]}, {color[2]})'
+        fig.add_trace(go.Scatter(x=sorted_data[:, 0], y=sorted_data[:, 1], mode='markers', name=f'{label} Data', marker_color=color_css))
+        fig.add_trace(go.Scatter(x=new_x, y=new_y, mode='lines', name=f'{label} Interpolation', line_color=color_css))
 
     # Update the layout of the plot
     fig.update_layout(
