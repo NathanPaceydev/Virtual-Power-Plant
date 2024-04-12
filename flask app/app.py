@@ -19,6 +19,11 @@ import plotly.graph_objs as go
 from plotly.graph_objs import Scatter, Figure
 
 from plotly.subplots import make_subplots
+from scipy.interpolate import interp1d
+import glob
+import os
+
+
 
 app = Flask(__name__)
 
@@ -30,6 +35,9 @@ def home():
     if request.method == 'POST':
         # Store existing form data in session
         session['surface_area'] = request.form.get('surfaceArea')
+        if session['surface_area'] == '':
+            session['surface_area'] = 0
+            
         session['postal_code'] = request.form.get('postalCode')
         session['array_type'] = request.form.get('arrayType')
         session['module_type'] = request.form.get('moduleType')
@@ -38,6 +46,10 @@ def home():
         # Store the new input for the number of wind turbines
         session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
         session['turbineHeight'] = request.form.get('turbineHeight', type=int)
+        
+        # battery consumption
+        session['battery_consumption'] = request.form.get('hourlyDemand', type=int)
+        session['battery_runtime'] = request.form.get('runtime', type=int)
 
         # Redirect to the solar page
         return redirect(url_for('solar'))
@@ -74,7 +86,6 @@ def solar():
         '4': '2-Axis',
     }
     
-
     
     module_types = {
         '0': 'Standard',
@@ -205,34 +216,45 @@ def solar():
     plot5 = fig5.to_html(full_html=False)
     
     # adjust solar cost based on choice
+    # premium solar pannel
     if module_type_num == 1:
         solar_cost_per_watt = 0.45 # $[CAD] / W 
+        pannel_wattage = 575 #W
+    # standard pannel
     elif module_type_num == 0:
         solar_cost_per_watt = 0.56
+        pannel_wattage = 550 #W
+    # thin film
     else:
         solar_cost_per_watt = 1.54
-    # calculate number of solar pannels and the cost associated
+        pannel_wattage = 110 #W
     
+    # calculate number of solar pannels and the cost associated
     solar_cost = system_capacity_W * solar_cost_per_watt # $ [CAD]
     
     # calculate the cost of mounts
     costCarport = 1.57  # approximate $/W per Hayter Group
     costRoof = 0.410 # approximate $/W per Hayter Group
     
-    # ADJUST MOUNT COST BASED ON TYPE
+    # ADJUST MOUNT COST BASED ON TYPE in $/W
+    # fixed carport
     if array_type_num == 0:
-        cost_mount = 1.57
+        cost_mount = costCarport
+    # fixed roof mounted
     elif array_type_num == 1:
         # otherwise
+        cost_mount = costRoof
+    # 1 axis tracking
+    elif array_type_num ==2 or array_type_num ==3:
         cost_mount = 0.410
-    elif array_type_num ==2:
-        cost_mount = 0.410
-        
+    # otherwise 2 axis tracking
+    else:
+        cost_mount = 1.14
+    
     cost_mount_total = cost_mount*system_capacity_W
     total_solar_installed_cost = solar_cost+cost_mount_total
     
     # calculate the number of pannels
-    pannel_wattage = 575 #W
     num_pannels = system_capacity_W / pannel_wattage
 
     ####### Finical Plots ########
@@ -756,9 +778,56 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
-    # cost / Wh 
-    return render_template('battery.html')
+    battery_consumption = session.get('battery_consumption', 'Not provided')
+    battery_runtime = session.get('battery_runtime', 'Not provided')
+    battery_capacity = battery_consumption*battery_runtime
+    # The directory where your CSV files are stored
+    folder_path = './static/Battery-cycles'
 
+    # Get all CSV files in the folder
+    file_paths = glob.glob(os.path.join(folder_path, '*.csv'))
+
+    # Create a Plotly figure
+    fig = go.Figure()
+
+    # Iterate through each file and plot the data
+    for file_path in file_paths:
+        # Read the CSV file
+        data = pd.read_csv(file_path, header=None)  # Assuming no header in the CSV files
+        # Convert to numpy array 
+        data_array = np.asarray(data)
+
+        # Sort the data by the first column (cycle number) for accurate interpolation
+        sorted_indices = np.argsort(data_array[:, 0])
+        sorted_data = data_array[sorted_indices]
+
+        # Create a linear interpolation function
+        interpolation_func = interp1d(sorted_data[:, 0], sorted_data[:, 1], kind='linear')
+
+        # Generate new x values for plotting the interpolation
+        new_x = np.linspace(sorted_data[0, 0], sorted_data[-1, 0], num=500)
+        new_y = interpolation_func(new_x)
+
+        # Plot the data
+        label = os.path.basename(file_path).replace('.csv', '')
+        fig.add_trace(go.Scatter(x=data_array[:, 0], y=data_array[:, 1], mode='markers', name=label))
+        fig.add_trace(go.Scatter(x=new_x, y=new_y, mode='lines', name=f'{label} Interpolation'))
+
+    # Update the layout of the plot
+    fig.update_layout(
+        title='Battery Capacity Retention over Cycle Number with Linear Interpolation at 20 deg Celsius',
+        xaxis_title='Cycle Number',
+        yaxis_title='Capacity Retention (%)',
+        legend_title='Legend'
+    )
+
+    # Show the plot
+    # Convert the figure to HTML and embed it
+    capacity_plot = fig.to_html(full_html=False)
+    
+    return render_template('battery.html', battery_capacity=battery_capacity, battery_runtime=battery_runtime, battery_consumption=battery_consumption, capacity_plot=capacity_plot)
+ 
+ 
 
 @app.route('/pricing', methods=['GET','POST'])
 def pricing():

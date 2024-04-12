@@ -4,4 +4,36 @@
 
 {% block content %}
     <h1>Battery Information</h1>
+    <div style="display: flex; justify-content: space-between;">
+        <!-- Solar Input Data Column -->
+        <div style="width: 48%;">
+            <h1>Battery Input Data</h1>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Hourly Demand (kW)  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_consumption }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Islanding Runtime (Hours) </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_runtime }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Battery Capacity Needed (kWh)  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_capacity }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    <p>Battery Capacity Degradation Based on this study: </p>
+    <a href="https://www.researchgate.net/publication/303890624_Modeling_of_Lithium-Ion_Battery_Degradation_for_Cell_Life_Assessment" target="_blank">Modeling of Lithium-Ion Battery Degradation for Cell Life Assessment </a>
+
+    <div id="plot">
+        {{ capacity_plot|safe }}
+    </div>
+    
+
 {% endblock %}

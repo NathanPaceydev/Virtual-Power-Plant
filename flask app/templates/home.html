@@ -94,35 +94,35 @@
         <h3>Solar Inputs</h3>
         <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
         <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
-
+    
         <label for="postalCode">Postal Code:</label>
         <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
-
+    
         <label for="arrayType">Array Type:</label>
         <select id="arrayType" name="arrayType">
-            <option value=0>Fixed Carport</option>
-            <option value=1>Fixed - Roof Mounted</option>
-            <option value=2>1-Axis Tracking</option>
-            <option value=3>1-Axis Backtracking</option>
-            <option value=4>2-Axis</option>
+            <option value="0">Fixed Carport</option>
+            <option value="1">Fixed - Roof Mounted</option>
+            <option value="2">1-Axis Tracking</option>
+            <option value="3">1-Axis Backtracking</option>
+            <option value="4">2-Axis</option>
         </select><br><br>
-
+    
         <label for="moduleType">Module Type:</label>
         <select id="moduleType" name="moduleType">
-            <option value=0>Standard</option>
-            <option value=1>Premium</option>
-            <option value=2>Thin Film</option>
+            <option value="0">Standard</option>
+            <option value="1">Premium</option>
+            <option value="2">Thin Film</option>
         </select><br><br>
-
+    
         <label for="tilt">Tilt (0 to 90 degrees):</label>
         <input type="range" id="tilt" name="tilt" min="0" max="90" step="1" oninput="this.nextElementSibling.value = this.value">
         <output>45</output><br><br>
-        
+    
         <h3>Wind Inputs</h3>
         <label for="numTurbines">Number of Wind Turbines:</label>
         <input type="number" id="numTurbines" name="numTurbines" min="1" step="1">
         <br><br>
-        
+    
         <label for="turbineHeight">Turbine Height:</label>
         <select id="turbineHeight" name="turbineHeight">
             <option value="18">18m</option>
@@ -131,9 +131,47 @@
             <option value="36">36m</option>
         </select>
         <br><br>
-
+    
+        <h3>Battery Inputs</h3>
+    
+        <input type="checkbox" id="battery" name="battery" value="Battery_bool">
+        <label for="battery"> Include Utility Scale Battery Storage</label><br>
+        
+        <!-- Container for the dynamic input field -->
+        <br>
+        <div id="batteryDemandContainer"></div>
+        <div id="batteryRunTime"></div>
+    
+        <br><br>
+    
         <input type="submit" value="Submit">
     </form>
+    
+    <script>
+    document.getElementById("battery").addEventListener("change", function() {
+        const container = document.getElementById("batteryDemandContainer");
+        const container2 = document.getElementById("batteryRunTime");
+        container.innerHTML = ''; // Clear previous inputs
+        if(this.checked) {
+            // Create the input field
+            const input = document.createElement("input");
+            input.type = "number";
+            input.id = "hourlyDemand";
+            input.name = "hourlyDemand";
+            input.placeholder = "Hourly Demand (kW)";
+
+            const input2 = document.createElement("input");
+            input2.type = "number";
+            input2.id = "runtime";
+            input2.name = "runtime";
+            input2.placeholder = "Number of Hours ";
+    
+            // Add the input field to the container
+            container.appendChild(input);
+            container.appendChild(input2);
+        }
+    });
+    </script>
 
     <br><br><br><br>
     <h2>Equipment details</h2>
@@ -246,9 +284,9 @@
                 <td>Single Axis Tracking Mount</td>
                 <td>DEGER</td>
                 <td>Single Axis Tracker S100-PF-SRn</td>
-                <td>~ 21,220.0 W</td>
+                <td>~ 34,400.0 W</td>
                 <td>N/A</td>
-                <td>$5,733.00 / Unit <br>$0.27 / W</td>
+                <td>$5,733.00 / Unit <br>$0.17 / W</td>
                 <td>
                     <a href="https://shop.frankensolar.ca/deger-single-axis-tracker-s100-pf-sr/?fbclid=IwAR1FCOOvEGMhTpIcCcf50EqkNAdciozC_mvKGZXN4mfcLhx14Pa-NvXApeI_aem_AdLjDNyyXs0_Xp0HdUkvktyECSWV57aEubDkYvsXQe-jQ6VnPYSlzGsTCFXyZcbf2ATz5GduVw4i1UwmuNbwqOqD" target="_blank">Single Axis Mount Website</a>
                     <br>
@@ -264,9 +302,9 @@
                 <td>Dual Axis Tracking Mount</td>
                 <td>DEGER</td>
                 <td>Dual Axis Tracker D100H</td>
-                <td>~ 21,220.0 W</td>
+                <td>~ 15,000.0 W</td>
                 <td>N/A</td>
-                <td>$16,987.82 / Unit <br>$1.15 / W</td>
+                <td>$16,987.82 / Unit <br>$1.14 / W</td>
                 <td>
                     <a href="https://shop.frankensolar.ca/deger-single-axis-tracker-s100-pf-sr/?fbclid=IwAR1FCOOvEGMhTpIcCcf50EqkNAdciozC_mvKGZXN4mfcLhx14Pa-NvXApeI_aem_AdLjDNyyXs0_Xp0HdUkvktyECSWV57aEubDkYvsXQe-jQ6VnPYSlzGsTCFXyZcbf2ATz5GduVw4i1UwmuNbwqOqD" target="_blank">Single Axis Mount Website</a>
                     <br>
