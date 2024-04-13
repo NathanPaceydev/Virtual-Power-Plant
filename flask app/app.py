@@ -145,6 +145,8 @@ def solar():
     
     
     # Default values for variables
+    ac_hourly = 0
+    dc_hourly = 0
     ac_monthly = []
     dc_monthly = []
     poa_monthly = []
@@ -160,6 +162,15 @@ def solar():
         data = response.json()
 
         # Display outputs
+        ac_hourly = data['outputs']['ac']
+        dc_hourly = data['outputs']['dc']
+        # Assuming ac_hourly contains 24 hours of data for a single day
+        hours = [i for i in range(len(ac_hourly))]
+
+        # If ac_hourly contains data for multiple days, you might want to create a more complex structure
+        # For example, if ac_hourly represents a week of hourly data (24*7=168 hours)
+        day_time_hours = [f"Day {i//24 + 1}, Hour {i%24}" for i in range(len(ac_hourly))]
+
         ac_monthly = data["outputs"]["ac_monthly"]
         poa_monthly = data["outputs"]["poa_monthly"]
         solrad_monthly = data["outputs"]["solrad_monthly"]
@@ -261,7 +272,7 @@ def solar():
 
     ####### Finical Plots ########
     projLife = 30 # years
-    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_ac_yearly
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_ac_yearly
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = total_solar_installed_cost
     
@@ -337,8 +348,52 @@ def solar():
     solar_payback_plot = fig8.to_html(full_html=False)
 
     
+    # profit calcs
+    # File paths for each year's CSV data
+    file_paths = {
+        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    }
+    
+    # Combine all years of data into a single DataFrame
+    all_data = pd.DataFrame()
+    for file_path in file_paths.values():
+        yearly_data = pd.read_csv(file_path, skiprows=2)
+        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
+        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
+        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
+        all_data = pd.concat([all_data, yearly_data])
+
+    # Clean the data and reset index
+    all_data.reset_index(drop=True, inplace=True)
+    all_data.dropna(subset=['HOEP'], inplace=True)
+    
+    # Load the price data
+    hourly_prices = all_data['HOEP'].values  # $ /MWh / h Make sure to define 'all_data' with hourly price data
+    hourly_price_per_Wh = hourly_prices/1000000 # $[CAD] / W (in one hour)
+    hourly_profit = ac_hourly * hourly_price_per_Wh
+    
+    total_solar_revenue = np.sum(hourly_profit)
+
+    hourly_solar_revenue_fig = go.Figure(data=[
+        go.Bar(x=hours, y=hourly_profit, text=hourly_profit, textposition='auto')
+    ])
+    
+    # Update the layout of the plot
+    hourly_solar_revenue_fig.update_layout(
+        title='Hourly Profit from Selling Solar Energy at HOEP for 1 Year',
+        xaxis_title='Hour of the Day',
+        yaxis_title='Profit ($)',
+        plot_bgcolor='white'
+    )
+
+    # Convert the figure to HTML for rendering in Flask
+    hourly_solar_revenue_plot = hourly_solar_revenue_fig.to_html(full_html=False)
+    
     return render_template(
         'solar.html', 
+        total_solar_revenue=total_solar_revenue,
+        hourly_solar_revenue_plot=hourly_solar_revenue_plot,
         solar_ROI_plot=solar_ROI_plot,
         solar_payback_plot=solar_payback_plot,
         solar_rev_plot=solar_rev_plot,
@@ -678,7 +733,7 @@ def wind():
 
     ####### Finical Plots ########
     projLife = 30 # years
-    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4]) * total_yearly_generation
+    generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_yearly_generation
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = wind_cost
     
@@ -1095,6 +1150,9 @@ def pricing():
     # Plotting with Plotly
     hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $)'})
     hourly_price_fig.update_xaxes(tickangle=45)
+    
+    hourly_price_2023= data_cleaned['HOEP']
+    average_2023 = np.mean(hourly_price_2023)
 
     # Convert plot to HTML
     hourly_price_plot = hourly_price_fig.to_html(full_html=False)
@@ -1140,8 +1198,10 @@ def pricing():
     # Create figure and convert to HTML
     hourly_avg_price_fig = go.Figure(data=traces, layout=layout)
     hourly_avg_price_plot = hourly_avg_price_fig.to_html(full_html=False)
+    
+    
 
-    return render_template('pricing.html', hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
+    return render_template('pricing.html', average_2023=average_2023, hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
 
 
 @app.route('/download-csv')

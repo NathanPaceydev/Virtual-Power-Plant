@@ -12,6 +12,7 @@
         <h1>HOEP Data Visualization</h1>
         <div>{{ hourly_price_plot|safe }}</div>
     </body>
+    <h3>The average 2023 cost of electricity: ${{ average_2023 | round(2) }} /MWh</h3>
     <body>
         <h1>HOEP Yearly Hour of the Day Price Averages</h1>
         <div>{{ hourly_avg_price_plot|safe }}</div>

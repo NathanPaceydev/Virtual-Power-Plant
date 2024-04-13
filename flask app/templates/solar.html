@@ -86,11 +86,15 @@
 
     <br><br>
     <h1>Solar Financial Analysis </h1>
+    <p>In each sensativity analysis the middle redline represents the calculated generation while the other lines above and below represent if the system generates more or less energy.</p>
+    <p>Specifically each plot shows 1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2 times the calculated capacity</p>
     <div>{{ solar_payback_plot|safe }}</div>
     <br>
     <div>{{ solar_ROI_plot|safe }}</div>
     <div>{{ solar_rev_plot|safe }}</div>
-
+    
+    <div>{{ hourly_solar_revenue_plot|safe }}</div>
+    <h3>Total Yearly Solar Revenue ${{ total_solar_revenue | round(2) }}</h3>
 
     <a href="{{ url_for('download_csv') }}" class="btn btn-primary">Download Data as CSV</a>
 
