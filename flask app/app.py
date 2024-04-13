@@ -145,6 +145,7 @@ def solar():
     
     
     # Default values for variables
+    hours = []
     ac_hourly = 0
     dc_hourly = 0
     ac_monthly = []
@@ -438,7 +439,7 @@ def wind():
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
 
-    
+    hours = []
     # The order of variables in hourly or daily is important to assign them correctly below
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
@@ -809,9 +810,56 @@ def wind():
     wind_payback_plot = fig8.to_html(full_html=False)
 
 
+    # profit calcs
+    # File paths for each year's CSV data
+    file_paths = {
+        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    }
+    
+    # Combine all years of data into a single DataFrame
+    all_data = pd.DataFrame()
+    for file_path in file_paths.values():
+        yearly_data = pd.read_csv(file_path, skiprows=2)
+        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
+        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
+        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
+        all_data = pd.concat([all_data, yearly_data])
+
+    # Clean the data and reset index
+    all_data.reset_index(drop=True, inplace=True)
+    all_data.dropna(subset=['HOEP'], inplace=True)
+    
+    # Load the price data
+    hourly_prices = all_data['HOEP'].values  # $ /MWh / h Make sure to define 'all_data' with hourly price data
+    hourly_price_per_kWh = hourly_prices/1000 # $[CAD] / kW (in one hour)
+    hourly_wind_gen = hourly_dataframe['total_power_gen']
+    hourly_revenue_wind = hourly_wind_gen*hourly_price_per_kWh # $[CAD] / h
+    
+    hours = [i for i in range(len(hourly_wind_gen))]
+    total_wind_revenue = np.sum(hourly_revenue_wind)
+
+    hourly_wind_revenue_fig = go.Figure(data=[
+        go.Bar(x=hours, y=hourly_revenue_wind, text=hourly_revenue_wind, textposition='auto')
+    ])
+    
+    # Update the layout of the plot
+    hourly_wind_revenue_fig.update_layout(
+        title='Hourly Profit from Selling Wind Energy at HOEP for 1 Year',
+        xaxis_title='Hour of the Day',
+        yaxis_title='Profit ($)',
+        plot_bgcolor='white'
+    )
+    
+    hourly_wind_revenue_plot = hourly_wind_revenue_fig.to_html(full_html=False)
+
+
+
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        total_wind_revenue=total_wind_revenue,
+        hourly_wind_revenue_plot=hourly_wind_revenue_plot,
         wind_ROI_plot=wind_ROI_plot,
         wind_rev_plot=wind_rev_plot,
         wind_payback_plot=wind_payback_plot,
