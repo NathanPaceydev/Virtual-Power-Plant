@@ -793,6 +793,11 @@ def battery():
     
     
     battery_capacity = battery_consumption*battery_runtime
+    
+    # cost
+    battery_cost_per_kWh = 748.2439907 # [CAD / kWh]
+    total_upfront_battery_cost = battery_capacity * battery_cost_per_kWh
+    
     # The directory where your CSV files are stored
     folder_path = './static/Battery-cycles'
 
@@ -994,6 +999,14 @@ def battery():
     # Convert the figure to HTML for rendering in Flask
     profit_plot_html = profit_fig.to_html(full_html=False)
     
+    # Find the minimum profit and its index
+    min_profit = float(min(profit_values))
+    min_profit_index = profit_values.index(min_profit)
+
+    # Find the SoC type associated with the minimum profit
+    min_profit_soc_type = soc_types[min_profit_index]
+    
+    amount_earned_min = min_profit-total_upfront_battery_cost
     
     return render_template(
         'battery.html', 
@@ -1002,10 +1015,14 @@ def battery():
         battery_final_percent=battery_final_percent,
         battery_max_cycles=battery_max_cycles,
         battery_consumption=battery_consumption, 
+        total_upfront_battery_cost=total_upfront_battery_cost,
         capacity_plot=capacity_plot, 
         year_one_cap_plot=year_one_cap_plot,
         cap_plot_all_time=cap_plot_all_time,
-        profit_plot_html=profit_plot_html
+        profit_plot_html=profit_plot_html,
+        min_profit=min_profit,
+        min_profit_soc_type=min_profit_soc_type,
+        amount_earned_min=amount_earned_min
     )
  
 # Function to simulate energy arbitrage and track capacity

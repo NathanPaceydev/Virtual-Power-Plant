@@ -44,9 +44,18 @@
                     <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_capacity }}</td>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px;">Final Battery Capacity (kWh)  </td>
-                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_capacity }}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Total Upfront cost based on $CAD/kWh  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${{ total_upfront_battery_cost | round(2) }}</td>
                 </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Total Minimum Revenue over battery lifetime from {{ min_profit_soc_type }} charging profile  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">${{ min_profit | round(2) }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;"><b>Total Amounted Earned (Profit) from Battery System </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;"><b>${{ amount_earned_min | round(2) }}</td>
+                </tr>
+             
             </table>
         </div>
     </div>
@@ -65,6 +74,8 @@
         {{ cap_plot_all_time|safe }}
     </div>
     <br>
+    <h4>Total revenue over the lifetime was calculated using the HEOP hourly data extended over the lifetime of the Battery</h4>
+    <p>The peak hour of each daily price was used as the discharge and buyback price for the battery arbitrage system. For more info see the pricing data page</p>
     <divid="profit_plot">
         {{ profit_plot_html|safe }}
     </div>
