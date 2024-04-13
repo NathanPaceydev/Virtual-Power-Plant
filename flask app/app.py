@@ -778,8 +778,8 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
-    battery_consumption = session.get('battery_consumption', 'Not provided')
-    battery_runtime = session.get('battery_runtime', 'Not provided')
+    battery_consumption = session.get('battery_consumption', 'Not provided') or 0
+    battery_runtime = session.get('battery_runtime', 'Not provided') or 0
     battery_capacity = battery_consumption*battery_runtime
     # The directory where your CSV files are stored
     folder_path = './static/Battery-cycles'
@@ -828,9 +828,217 @@ def battery():
     # Convert the figure to HTML and embed it
     capacity_plot = fig.to_html(full_html=False)
     
-    return render_template('battery.html', battery_capacity=battery_capacity, battery_runtime=battery_runtime, battery_consumption=battery_consumption, capacity_plot=capacity_plot)
+    # get the HEOP pricing data
+    # File paths for each year's CSV data
+    file_paths = {
+        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+    }
+    
+    # Combine all years of data into a single DataFrame
+    all_data = pd.DataFrame()
+    for file_path in file_paths.values():
+        yearly_data = pd.read_csv(file_path, skiprows=2)
+        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
+        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
+        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
+        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
+        all_data = pd.concat([all_data, yearly_data])
+
+    # Clean the data and reset index
+    all_data.reset_index(drop=True, inplace=True)
+    all_data.dropna(subset=['HOEP'], inplace=True)
+    
+    # Load the price data
+    hourly_prices = all_data['HOEP'].values  # Make sure to define 'all_data' with hourly price data
+
+    # Directory containing degradation models
+    folder_path = './static/Battery-cycles'
+    file_paths = glob.glob(os.path.join(folder_path, '*.csv'))
+    
+    initial_capacity = battery_capacity/1000
+    charge_rate = initial_capacity  # MW/h based off of the 2hr charge discharge rate
+    discharge_rate = initial_capacity  # MW/h  
+    
+    # Create a Plotly figure
+    year_one_cap_fig = go.Figure()
+
+    for file_path in file_paths:
+        data = pd.read_csv(file_path, header=None)
+        sorted_data = data.sort_values(by=0)
+        cycle_numbers = sorted_data[0].values
+        capacities = sorted_data[1].values / 100
+
+        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value="extrapolate")
+        basename = os.path.basename(file_path).replace('.csv', '')
+        max_charge_level, min_charge_level = map(int, basename.split('to'))
+        min_charge_level /= 100
+        max_charge_level /= 100
+
+        tracked_capacities = simulate_and_track_capacity(capacity_func, hourly_prices, initial_capacity, charge_rate, discharge_rate, min_charge_level, max_charge_level)
+
+        # Generate x values (time in hours)
+        hours = np.linspace(0, len(tracked_capacities), num=len(tracked_capacities))
+
+        # Add trace to Plotly figure
+        year_one_cap_fig.add_trace(go.Scatter(x=hours, y=tracked_capacities, mode='lines', name=f'{basename} (SoC: {max_charge_level*100}% to {min_charge_level*100}%)'))
+
+    # Update the layout of the Plotly plot
+    year_one_cap_fig.update_layout(
+        title='Battery Capacity Over each hour of Year 1 for Different SoC Types',
+        xaxis_title='Time (Hours)',
+        yaxis_title='Battery Capacity (MWh)',
+        legend_title='SoC Types'
+    )
+
+    # Convert the figure to HTML for rendering in Flask
+    year_one_cap_plot = year_one_cap_fig.to_html(full_html=False)
+    
+    # battery revenue
+    final_percentage = 0.50
+    # warrenty for Megapack cover 15 years representing ~70% which correlates to about 5500
+    # therefore set the max at slightly less than double 
+    max_cycles = 10000000  # Set maximum cycle count
+    
+    # Simulate and compare results for each degradation model
+    profits = {}
+    cycles_used = {}
+    
+    hours_per_year = 24 * 365  # Total hours in a year
+
+    
+    for file_path in file_paths:
+        data = pd.read_csv(file_path, header=None)
+        sorted_data = data.sort_values(by=0)
+        cycle_numbers = sorted_data[0].values
+        capacities = sorted_data[1].values / 100  # Convert percentages to fraction of initial capacity
+
+        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value="extrapolate")
+        basename = os.path.basename(file_path).replace('.csv', '')
+        target_capacity = final_percentage * initial_capacity
+
+        profit, cycles = simulate_daily_cycling(capacity_func, hourly_prices, initial_capacity, target_capacity, max_cycles)
+        profits[basename] = profit
+        cycles_used[basename] = cycles
+    
+    cap_fig_all_time = go.Figure()
+    for file_path in file_paths:
+        data = pd.read_csv(file_path, header=None)
+        sorted_data = data.sort_values(by=0)
+        cycle_numbers = sorted_data[0].values
+        capacities = sorted_data[1].values / 100 # Scale to percentage
+
+        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value='extrapolate')
+        basename = os.path.basename(file_path).replace('.csv', '')
+        cycles = cycles_used[basename]  # Ensure this data is available from previous simulations
+
+        hours = np.arange(0, cycles * 24, 24)
+        capacities = capacity_func(hours / 24) * initial_capacity
+        years = hours / hours_per_year
+
+        cap_fig_all_time.add_trace(go.Scatter(x=years, y=capacities, mode='lines', name=basename))
+
+    cap_fig_all_time.update_layout(
+        title='Comparison of Battery Capacity Degradation Over Time for Different SoCs',
+        xaxis_title='Time (Years)',
+        yaxis_title='Battery Capacity (MWh)',
+        legend_title="SoC Types"
+    )
+
+    cap_plot_all_time = cap_fig_all_time.to_html(full_html=False)
+    
+    # Now integrate the new profit plot:
+    # Extract SoC types, corresponding profits, and cycles used for plotting
+    soc_types = list(profits.keys())
+    profit_values = list(profits.values())
+    cycles_for_soc = [cycles_used[soc] for soc in soc_types]
+
+    # Create a Plotly bar chart for profits
+    profit_fig = go.Figure()
+
+    profit_fig.add_trace(go.Bar(
+        x=soc_types,
+        y=profit_values,
+        text=[f"{cycles} cycles" for cycles in cycles_for_soc],
+        marker_color='skyblue',  # Uniform color or you could use a color scale
+        hoverinfo='y+text'
+    ))
+
+    profit_fig.update_layout(
+        title='Profit Comparison by Degradation Model with Cycle Count',
+        xaxis_title='State of Charge Type',
+        yaxis_title='Profit ($)',
+        legend_title="Legend",
+        xaxis={'tickangle': 45}  # Rotate labels for better legibility
+    )
+
+    # Convert the figure to HTML for rendering in Flask
+    profit_plot_html = profit_fig.to_html(full_html=False)
+    
+    
+    return render_template(
+        'battery.html', 
+        battery_capacity=battery_capacity, 
+        battery_runtime=battery_runtime, 
+        battery_consumption=battery_consumption, 
+        capacity_plot=capacity_plot, 
+        year_one_cap_plot=year_one_cap_plot,
+        cap_plot_all_time=cap_plot_all_time,
+        profit_plot_html=profit_plot_html
+    )
  
- 
+# Function to simulate energy arbitrage and track capacity
+def simulate_and_track_capacity(capacity_func, prices, initial_capacity, charge_rate, discharge_rate, min_charge_level, max_charge_level):
+    energy_stored = 0
+    cycle_count = 0
+    capacities = [initial_capacity]  # Track capacity over time
+
+    for i in range(1, len(prices)):
+        current_capacity = capacity_func(cycle_count) * initial_capacity
+        min_allowed_energy = current_capacity * min_charge_level
+        max_allowed_energy = current_capacity * max_charge_level
+        
+        predicted_next_price = prices[i]
+        current_price = prices[i-1]
+
+        if current_price < predicted_next_price and energy_stored < max_allowed_energy:
+            energy_to_charge = min(charge_rate, max_allowed_energy - energy_stored)
+            energy_stored += energy_to_charge
+            cycle_count += 1
+        elif current_price > predicted_next_price and energy_stored > min_allowed_energy:
+            energy_to_sell = min(discharge_rate, energy_stored - min_allowed_energy)
+            energy_stored -= energy_to_sell
+            cycle_count += 1
+
+        capacities.append(current_capacity)
+
+    return capacities
+
+# Function to simulate energy arbitrage and track capacity
+def simulate_daily_cycling(capacity_func, prices, initial_capacity, target_capacity, max_cycles):
+    daily_profit = 0
+    cycle_count = 0
+    days = len(prices) // 24  # Assuming prices are hourly and we have complete days
+    current_capacity = initial_capacity
+
+    while current_capacity > target_capacity and cycle_count < max_cycles:
+        for day in range(days):
+            if current_capacity <= target_capacity or cycle_count >= max_cycles:
+                break  # Stop the simulation if capacity drops to the target or max cycles reached
+            daily_prices = prices[day*24:(day+1)*24]
+            if len(daily_prices) < 24:
+                continue  # Skip incomplete days
+
+            min_price_hour = np.argmin(daily_prices)
+            max_price_hour = np.argmax(daily_prices)
+
+            current_capacity = capacity_func(cycle_count) * initial_capacity
+            buy_price = daily_prices[min_price_hour]
+            sell_price = daily_prices[max_price_hour]
+
+            daily_profit += (sell_price - buy_price) * current_capacity
+            cycle_count += 1  # Increment cycle count for each full day
+
+    return daily_profit, cycle_count
 
 @app.route('/pricing', methods=['GET','POST'])
 def pricing():

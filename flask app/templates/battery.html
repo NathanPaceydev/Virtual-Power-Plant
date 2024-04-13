@@ -41,9 +41,21 @@
     <p>Battery Capacity Degradation Based on this study: </p>
     <a href="https://www.researchgate.net/publication/303890624_Modeling_of_Lithium-Ion_Battery_Degradation_for_Cell_Life_Assessment" target="_blank">Modeling of Lithium-Ion Battery Degradation for Cell Life Assessment </a>
 
-    <div id="plot">
+    <div id="cap_plot">
         {{ capacity_plot|safe }}
     </div>
-    
+    <br>
+    <div id="cap_year_plot">
+        {{ year_one_cap_plot|safe }}
+    </div>
+    <br>
+    <div id="cap_plot_all_time">
+        {{ cap_plot_all_time|safe }}
+    </div>
+    <br>
+    <divid="profit_plot">
+        {{ profit_plot_html|safe }}
+    </div>
+
 
 {% endblock %}
