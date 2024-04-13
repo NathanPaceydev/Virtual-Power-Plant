@@ -50,7 +50,9 @@ def home():
         # battery consumption
         session['battery_consumption'] = request.form.get('hourlyDemand', type=int)
         session['battery_runtime'] = request.form.get('runtime', type=int)
-
+        session['battery_final_percent'] = request.form.get('finalPercentage', type=int)
+        session['battery_max_cycles'] = request.form.get('maxCycles', type=int)
+        
         # Redirect to the solar page
         return redirect(url_for('solar'))
 
@@ -778,14 +780,34 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
+    
     battery_consumption = session.get('battery_consumption', 'Not provided') or 0
     battery_runtime = session.get('battery_runtime', 'Not provided') or 0
+    
+    # warrenty for Megapack cover 15 years representing ~70% which correlates to about 5500
+    # therefore set the max at slightly less than double
+    battery_final_percent = session.get('battery_final_percent') or 50
+    battery_max_cycles = int(session.get('battery_max_cycles') or 100000)
+    
+    battery_final_percent = float(battery_final_percent)/100
+    
+    
     battery_capacity = battery_consumption*battery_runtime
     # The directory where your CSV files are stored
     folder_path = './static/Battery-cycles'
 
     # Get all CSV files in the folder
     file_paths = glob.glob(os.path.join(folder_path, '*.csv'))
+
+    # Define specific colors for each SoC type
+    color_map = {
+        '100to25': 'rgb(255, 0, 0)',  # Red
+        '100to40': 'rgb(0, 128, 0)',  # Green
+        '100to50': 'rgb(0, 0, 255)',  # Blue
+        '75to25': 'rgb(255, 165, 0)', # Orange
+        '75to65': 'rgb(128, 0, 128)', # Purple
+        '85to25': 'rgb(255, 192, 203)'# Pink
+    }
 
     # Create a Plotly figure
     fig = go.Figure()
@@ -811,10 +833,9 @@ def battery():
         # Plot the data
         label = os.path.basename(file_path).replace('.csv', '')
         # Choose a color for the current data set
-        color = np.random.choice(range(255), size=3)
-        color_css = f'rgb({color[0]}, {color[1]}, {color[2]})'
+        color_css = color_map.get(label, 'rgb(0,0,0)')
         fig.add_trace(go.Scatter(x=sorted_data[:, 0], y=sorted_data[:, 1], mode='markers', name=f'{label} Data', marker_color=color_css))
-        fig.add_trace(go.Scatter(x=new_x, y=new_y, mode='lines', name=f'{label} Interpolation', line_color=color_css))
+        fig.add_trace(go.Scatter(x=new_x, y=new_y, mode='lines', name=f'{label} Interpolation', line_color=color_css, showlegend=False))
 
     # Update the layout of the plot
     fig.update_layout(
@@ -878,9 +899,10 @@ def battery():
 
         # Generate x values (time in hours)
         hours = np.linspace(0, len(tracked_capacities), num=len(tracked_capacities))
-
+        
+        color_css = color_map.get(basename, 'rgb(0,0,0)')
         # Add trace to Plotly figure
-        year_one_cap_fig.add_trace(go.Scatter(x=hours, y=tracked_capacities, mode='lines', name=f'{basename} (SoC: {max_charge_level*100}% to {min_charge_level*100}%)'))
+        year_one_cap_fig.add_trace(go.Scatter(x=hours, y=tracked_capacities, mode='lines', name=f'{basename} (SoC: {max_charge_level*100}% to {min_charge_level*100}%)', line_color=color_css))
 
     # Update the layout of the Plotly plot
     year_one_cap_fig.update_layout(
@@ -894,10 +916,7 @@ def battery():
     year_one_cap_plot = year_one_cap_fig.to_html(full_html=False)
     
     # battery revenue
-    final_percentage = 0.50
-    # warrenty for Megapack cover 15 years representing ~70% which correlates to about 5500
-    # therefore set the max at slightly less than double 
-    max_cycles = 10000000  # Set maximum cycle count
+    
     
     # Simulate and compare results for each degradation model
     profits = {}
@@ -914,9 +933,9 @@ def battery():
 
         capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value="extrapolate")
         basename = os.path.basename(file_path).replace('.csv', '')
-        target_capacity = final_percentage * initial_capacity
+        target_capacity = battery_final_percent * initial_capacity
 
-        profit, cycles = simulate_daily_cycling(capacity_func, hourly_prices, initial_capacity, target_capacity, max_cycles)
+        profit, cycles = simulate_daily_cycling(capacity_func, hourly_prices, initial_capacity, target_capacity, battery_max_cycles)
         profits[basename] = profit
         cycles_used[basename] = cycles
     
@@ -934,8 +953,9 @@ def battery():
         hours = np.arange(0, cycles * 24, 24)
         capacities = capacity_func(hours / 24) * initial_capacity
         years = hours / hours_per_year
-
-        cap_fig_all_time.add_trace(go.Scatter(x=years, y=capacities, mode='lines', name=basename))
+        
+        color_css = color_map.get(basename, 'rgb(0,0,0)')
+        cap_fig_all_time.add_trace(go.Scatter(x=years, y=capacities, mode='lines', name=basename, line_color=color_css))
 
     cap_fig_all_time.update_layout(
         title='Comparison of Battery Capacity Degradation Over Time for Different SoCs',
@@ -964,9 +984,9 @@ def battery():
     ))
 
     profit_fig.update_layout(
-        title='Profit Comparison by Degradation Model with Cycle Count',
+        title='Total Lifetime Revenue Comparison by Degradation Model with Cycle Count',
         xaxis_title='State of Charge Type',
-        yaxis_title='Profit ($)',
+        yaxis_title='Total Revenue ($)',
         legend_title="Legend",
         xaxis={'tickangle': 45}  # Rotate labels for better legibility
     )
@@ -979,6 +999,8 @@ def battery():
         'battery.html', 
         battery_capacity=battery_capacity, 
         battery_runtime=battery_runtime, 
+        battery_final_percent=battery_final_percent,
+        battery_max_cycles=battery_max_cycles,
         battery_consumption=battery_consumption, 
         capacity_plot=capacity_plot, 
         year_one_cap_plot=year_one_cap_plot,

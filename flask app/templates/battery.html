@@ -22,6 +22,14 @@
                     <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_runtime }}</td>
                 </tr>
                 
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;"> Final Battery Capacity As a fraction % </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_final_percent }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Maxiumum Number of cycles </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_max_cycles }}</td>
+                </tr>
             </table>
         </div>
         <div style="width: 48%;">
@@ -32,7 +40,11 @@
                     <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #ddd; padding: 8px;">Battery Capacity Needed (kWh)  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Initial Battery Capacity Needed (kWh)  </td>
+                    <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_capacity }}</td>
+                </tr>
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 8px;">Final Battery Capacity (kWh)  </td>
                     <td style="border: 1px solid #ddd; padding: 8px;">{{ battery_capacity }}</td>
                 </tr>
             </table>
