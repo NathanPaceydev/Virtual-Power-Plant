@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Project Summary{% endblock %}
+
+{% block content %}
+
+        <!-- wind_project_revenue=wind_project_revenue,
+        wind_project_payback_period=wind_project_payback_period,
+        wind_project_roi=wind_project_roi,
+        wind_project_profit=wind_project_profit,
+
+        solar_pannel_cost=solar_pannel_cost,
+        solar_mount_cost=solar_mount_cost,
+        solar_total_cost=solar_total_cost,
+        solar_project_revenue=solar_project_revenue,
+        solar_project_payback_period=solar_project_payback_period,
+        solar_project_roi=solar_project_roi,
+        solar_project_profit=solar_project_profit -->
+
+
+<div style="display: flex; justify-content: space-between;">
+
+    <!-- Solar Input Data Column -->
+    <div style="width: 48%;">
+        <h1>Project Costs</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">System</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Cost [CAD]</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Aeolos Wind Turbines</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${{ wind_upfront_cost | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Solar Pannels Cost</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">$ {{ solar_pannel_cost | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Solar Mounts Cost</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">$ {{ solar_mount_cost | round(2) }}</td>
+            </tr>
+          
+           
+            
+        </table>
+    </div>
+
+    <!-- Wind System Outputs Column -->
+    <div style="width: 48%;">
+        <h1>30 Lifetime Project Revenue</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">System Capacity (kW)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"></td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Wind Generation (kWh)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"></td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Yearly Average Wind Speeds (m/s)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"></td>
+            </tr>
+            
+        </table>
+    </div>
+    
+
+</div> 
+
+<br>
+<div style="display: flex; justify-content: space-between;">
+
+    <!-- Solar Input Data Column -->
+    <div style="width: 48%;">
+        <h1>Project Balance</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Parameter</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Number of Aeolos Turbines</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"></td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Turbine height (m)</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"></td>
+            </tr>
+           
+          
+           
+            
+        </table>
+    </div>
+</div>
+<br>
+
+
+
+{% endblock %}
+

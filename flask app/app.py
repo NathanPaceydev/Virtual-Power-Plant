@@ -33,6 +33,13 @@ app.secret_key = 'your_secret_key_here'
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
+        # Reset the necessary session variables to zero
+        session_keys = ['surface_area', 'postal_code', 'array_type', 'module_type', 'tilt',
+                        'num_turbines', 'turbineHeight', 'battery_consumption',
+                        'battery_runtime', 'battery_final_percent', 'battery_max_cycles']
+        for key in session_keys:
+            session[key] = 0  # Resetting each to zero
+            
         # Store existing form data in session
         session['surface_area'] = request.form.get('surfaceArea')
         if session['surface_area'] == '':
@@ -399,6 +406,21 @@ def solar():
 
     # Convert the figure to HTML for rendering in Flask
     hourly_solar_revenue_plot = hourly_solar_revenue_fig.to_html(full_html=False)
+    
+    # update session with costs
+    session['solar_pannel_cost'] = solar_cost
+    session['solar_mount_cost'] = cost_mount_total
+    session['solar_total_cost'] = total_solar_installed_cost
+    
+    # update session with revenue including degredation based on $0.1/kWh
+    session['solar_project_revenue'] = min_buyback_total_rev
+    session['solar_project_payback_period'] = min_buyback_payback_period
+    session['solar_project_roi'] = min_buyback_roi
+    # project profit
+    session['solar_project_profit'] = total_project_profit_w_degredation
+    
+    # Commit session after updating
+    session.modified = True
     
     return render_template(
         'solar.html', 
@@ -875,7 +897,19 @@ def wind():
     
     hourly_wind_revenue_plot = hourly_wind_revenue_fig.to_html(full_html=False)
 
-
+    # update session with costs
+    session['wind_upfront_cost'] = wind_cost
+    
+    # update session with revenue including degredation based on $0.1/kWh
+    session['wind_project_revenue'] = total_wind_revenue
+    session['wind_project_payback_period'] = min_buyback_payback_period
+    session['wind_project_roi'] = min_buyback_roi
+    # project profit
+    session['wind_project_profit'] = total_project_profit_w_degredation
+    
+    # Commit session after updating
+    session['wind_visited'] = True
+    session.modified = True
 
     # Pass all plots to the template
     return render_template(
@@ -909,7 +943,6 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
-    
     battery_consumption = session.get('battery_consumption', 'Not provided') or 0
     battery_runtime = session.get('battery_runtime', 'Not provided') or 0
     
@@ -1137,6 +1170,10 @@ def battery():
     
     amount_earned_min = min_profit-total_upfront_battery_cost
     
+    
+    session['battery_visited'] = True
+    session.modified = True
+    
     return render_template(
         'battery.html', 
         battery_capacity=battery_capacity, 
@@ -1297,6 +1334,64 @@ def download_csv():
     # Return the streamed response
     return Response(generate_csv(), mimetype='text/csv', headers={"Content-Disposition": "attachment; filename=solar_data.csv"})
 
+
+@app.route('/reset')
+def reset_session():
+    for key in [ 'wind_visited', 'battery_visited']:
+        session.pop(key, None)
+    return redirect(url_for('home'))
+
+
+@app.route('/summary', methods=['GET','POST'])
+def summary():
+    
+    # Check all necessary data are available
+    required_keys = ['wind_upfront_cost', 'solar_pannel_cost']
+    if not all(key in session for key in required_keys):
+        return 'Data processing incomplete', 400  # or redirect to an error page or the start of the flow
+    
+    # Wind
+    # update session with costs
+    wind_upfront_cost= session.get('wind_upfront_cost', 0)
+    #wind_upfront_cost = float(wind_upfront_cost)
+    # update session with revenue including degredation based on $0.1/kWh
+    wind_project_revenue = session.get('wind_project_revenue', 0)
+    
+    wind_project_payback_period= session.get('wind_project_payback_period', 0)
+    wind_project_roi = session.get('wind_project_roi', 0)
+    # project profit
+    wind_project_profit = session.get('wind_project_profit', 0)
+    
+    
+    # Solar
+    # update session with costs
+    solar_pannel_cost = session.get('solar_pannel_cost', 0)
+    solar_mount_cost = session.get('solar_mount_cost', 0)
+    solar_total_cost = session.get('solar_total_cost', 0)
+    
+    # update session with revenue including degredation based on $0.1/kWh
+    solar_project_revenue = session.get('solar_project_revenue', 0)
+    solar_project_payback_period = session.get('solar_project_payback_period', 0)
+    solar_project_roi = session.get('solar_project_roi', 0)
+    # project profit
+    solar_project_profit = session.get('solar_project_profit', 0)
+    
+    
+    return render_template(
+        'summary.html',
+        wind_upfront_cost=wind_upfront_cost, 
+        wind_project_revenue=wind_project_revenue,
+        wind_project_payback_period=wind_project_payback_period,
+        wind_project_roi=wind_project_roi,
+        wind_project_profit=wind_project_profit,
+        solar_pannel_cost=solar_pannel_cost,
+        solar_mount_cost=solar_mount_cost,
+        solar_total_cost=solar_total_cost,
+        solar_project_revenue=solar_project_revenue,
+        solar_project_payback_period=solar_project_payback_period,
+        solar_project_roi=solar_project_roi,
+        solar_project_profit=solar_project_profit
+    )
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -41,6 +41,9 @@
             <li><a href="/wind">Wind Data</a></li>
             <li><a href="/battery">Battery Data</a></li>
             <li><a href="/pricing">Pricing Data</a></li>
+            {% if session.get('wind_visited') and session.get('battery_visited') %}
+                <li><a href="{{ url_for('summary') }}">Project Summary</a></li>
+            {% endif %}
             <li><a href="/contact">Contact</a></li>
         </ul>
     </nav>
