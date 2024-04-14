@@ -280,12 +280,18 @@ def solar():
     # Calculating yearly revenue for each generation scenario
     yearly_revenue = np.outer(generation_array, buyback_pricing)
     
+    total_project_rev_with_degredation = yearly_revenue*0.935*projLife
+   
     # Calculate ROI for each generation and buyback pricing
-    roi = yearly_revenue*projLife / upfront_cost *100
+    roi = total_project_rev_with_degredation / upfront_cost *100
 
     # Calculate Payback Period
-    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    payback_period = upfront_cost / (yearly_revenue*0.935) # Days to payback
     
+    min_buyback_total_rev = total_project_rev_with_degredation[3][0]
+    total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
+    min_buyback_roi = roi[3][0]
+    min_buyback_payback_period = payback_period[3][0]
     
     
     # Creating Plotly plot
@@ -297,7 +303,7 @@ def solar():
     layout = go.Layout(
         title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
         xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
-        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        yaxis=dict(title='Revenue Yearly (CAD)'),
         legend=dict(title='Yearly Generation'),
     )
 
@@ -317,7 +323,7 @@ def solar():
 
     # Define layout
     layout = go.Layout(
-        title='ROI for Different Yearly Generations Compared to Buyback Pricing',
+        title='ROI including degredation for Different Yearly Generations Compared to Buyback Pricing',
         xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
         yaxis=dict(title='ROI [%]'),
         legend=dict(title='Yearly Generation')
@@ -338,7 +344,7 @@ def solar():
 
     # Define layout
     layout = go.Layout(
-        title='Payback Period for Different Yearly Generations Compared to Buyback Pricing',
+        title='Payback Period including degredation for Different Yearly Generations Compared to Buyback Pricing',
         xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
         yaxis=dict(title='Payback Period (Years)'),
         legend=dict(title='Yearly Generation')
@@ -352,7 +358,7 @@ def solar():
     # profit calcs
     # File paths for each year's CSV data
     file_paths = {
-        '2023': './static/Pricing_Data/PUB_PriceHOEPPredispOR_2023_v393.csv'
+        '2023': './static\Pricing_Data\PUB_PriceHOEPPredispOR_2023_v393.csv'
     }
     
     # Combine all years of data into a single DataFrame
@@ -393,6 +399,10 @@ def solar():
     
     return render_template(
         'solar.html', 
+        total_project_profit_w_degredation=total_project_profit_w_degredation,
+        min_buyback_roi = min_buyback_roi,
+        min_buyback_payback_period = min_buyback_payback_period,
+        min_buyback_total_rev=min_buyback_total_rev,
         total_solar_revenue=total_solar_revenue,
         hourly_solar_revenue_plot=hourly_solar_revenue_plot,
         solar_ROI_plot=solar_ROI_plot,

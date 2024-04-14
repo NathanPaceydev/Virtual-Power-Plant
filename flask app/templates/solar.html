@@ -57,6 +57,19 @@
                 <td style="border: 1px solid #ddd; padding: 8px;">Number of Solar Pannels (rounded)</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">{{ num_pannels | round(0) }}</td>
             </tr>
+            
+            
+        </table>
+    </div>
+</div>
+<div style="display: flex; justify-content: space-between;">
+    <div style="width: 48%;">
+        <h1>Solar Project Financials</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Financials</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Cost</th>
+            </tr>
             <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">Cost of Solar Pannels [CAD]</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${{ solar_cost | round(2) }}</td>
@@ -69,7 +82,33 @@
                 <td style="border: 1px solid #ddd; padding: 8px;"><b>Total Installed Upfront Cost of Solar [CAD]</td>
                 <td style="border: 1px solid #ddd; padding: 8px;"><b>${{ total_solar_installed_cost | round(2) }}</td>
             </tr>
-            
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Total Revenue over a lifetime of 30 years with degredation from Solar with buyback of $0.1/kWh [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${{ min_buyback_total_rev | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;"><b>Total profit over a lifetime of 30 years with degredation from Solar with buyback of $0.1/kWh [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"><b>${{ total_project_profit_w_degredation | round(2) }}</td>
+            </tr>
+           
+        </table>
+    </div>
+    <div style="width: 48%;">
+        <h1>Solar Project Metrics</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+           
+            <tr style="background-color: #f2f2f2;">
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Key Project Metrics</th>
+                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Value</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Return on Investment from Solar with degredation with buyback of $0.1/kWh [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">%{{ min_buyback_roi | round(2) }}</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">Payback Period from Solar with degredation with buyback of $0.1/kWh [CAD]</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ min_buyback_payback_period | round(2) }} years</td>
+            </tr>
         </table>
     </div>
 </div>
