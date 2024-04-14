@@ -273,6 +273,9 @@ def solar():
 
     ####### Finical Plots ########
     projLife = 30 # years
+    degredation_percent = 0.4 # yearly percent output decrease
+    total_degredation = degredation_percent*projLife 
+    avg_degredation = total_degredation/2
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_ac_yearly
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = total_solar_installed_cost
@@ -280,7 +283,7 @@ def solar():
     # Calculating yearly revenue for each generation scenario
     yearly_revenue = np.outer(generation_array, buyback_pricing)
     
-    total_project_rev_with_degredation = yearly_revenue*0.935*projLife
+    total_project_rev_with_degredation = yearly_revenue*avg_degredation*projLife
    
     # Calculate ROI for each generation and buyback pricing
     roi = total_project_rev_with_degredation / upfront_cost *100
@@ -744,6 +747,10 @@ def wind():
 
     ####### Finical Plots ########
     projLife = 30 # years
+    degredation_percent = 0.6 # percent output decrease per year
+    total_degredation = degredation_percent*projLife #percent decrease after projectlife
+    avg_degredation = total_degredation/2
+    
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_yearly_generation
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = wind_cost
@@ -751,13 +758,18 @@ def wind():
     # Calculating yearly revenue for each generation scenario
     yearly_revenue = np.outer(generation_array, buyback_pricing)
     
+    total_project_rev_with_degredation = yearly_revenue*avg_degredation*projLife
+
     # Calculate ROI for each generation and buyback pricing
     roi = yearly_revenue*projLife / upfront_cost *100
 
     # Calculate Payback Period
     payback_period = upfront_cost / (yearly_revenue) # Days to payback
     
-    
+    min_buyback_total_rev = total_project_rev_with_degredation[3][0]
+    total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
+    min_buyback_roi = roi[3][0]
+    min_buyback_payback_period = payback_period[3][0]
     
     # Creating Plotly plot
     data = []
@@ -768,7 +780,7 @@ def wind():
     layout = go.Layout(
         title='Yearly Revenue for Different Yearly Generations Compared to Buyback Pricing',
         xaxis=dict(title='Buyback Pricing (CAD/kWh)'),
-        yaxis=dict(title='Revenue over 30 Years (CAD)'),
+        yaxis=dict(title='Yearly Revenue (CAD)'),
         legend=dict(title='Yearly Generation'),
     )
 
@@ -868,6 +880,10 @@ def wind():
     # Pass all plots to the template
     return render_template(
         'wind.html',
+        total_project_profit_w_degredation=total_project_profit_w_degredation,
+        min_buyback_roi = min_buyback_roi,
+        min_buyback_payback_period = min_buyback_payback_period,
+        min_buyback_total_rev=min_buyback_total_rev,
         total_wind_revenue=total_wind_revenue,
         hourly_wind_revenue_plot=hourly_wind_revenue_plot,
         wind_ROI_plot=wind_ROI_plot,
