@@ -80,7 +80,7 @@ def location():
     return render_template('location.html', location=location, elivation=elivation, distance=distance, latitude=latitude, longitude=longitude, postal_code=postal_code)
 
 
-    
+#TODO divide by zero error    
 @app.route('/solar', methods=['GET', 'POST'])
 def solar():
     # Retrieve form data from session
@@ -296,13 +296,18 @@ def solar():
     total_project_rev_with_degredation = yearly_revenue*avg_degredation*projLife
    
     # Calculate ROI for each generation and buyback pricing
-    roi = (total_project_rev_with_degredation-upfront_cost) / upfront_cost *100
+    roi = np.zeros_like(total_project_rev_with_degredation)
+    non_zero_cost = upfront_cost != 0
+    if non_zero_cost:
+        roi[non_zero_cost] = (total_project_rev_with_degredation[non_zero_cost] - upfront_cost) / upfront_cost * 100
 
     # Calculate Payback Period
-    payback_period = upfront_cost / (yearly_revenue*avg_degredation) # Days to payback
-    
+    payback_period = np.full_like(yearly_revenue, np.inf)  # Use infinity to indicate undefined or infinite payback period
+    non_zero_revenue = yearly_revenue * avg_degredation != 0
+    payback_period[non_zero_revenue] = upfront_cost / (yearly_revenue[non_zero_revenue] * avg_degredation)
+
     min_buyback_total_rev = total_project_rev_with_degredation[3][0]
-    total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
+    total_project_profit_w_degredation = min_buyback_total_rev - upfront_cost
     min_buyback_roi = roi[3][0]
     min_buyback_payback_period = payback_period[3][0]
     

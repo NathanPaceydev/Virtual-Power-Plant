@@ -91,13 +91,16 @@
     <h1>Virtual Power Plant Toolkit</h1>
 
     <form method="post">
+        <h3>Location</h3>
+        <label for="postalCode">Postal Code:</label>
+        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
+    
+
         <h3>Solar Inputs</h3>
         <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
         <input type="number" id="surfaceArea" name="surfaceArea"><br><br>
     
-        <label for="postalCode">Postal Code:</label>
-        <input type="text" id="postalCode" name="postalCode" pattern="[A-Za-z0-9]{3,}"><br><br>
-    
+        
         <label for="arrayType">Array Type:</label>
         <select id="arrayType" name="arrayType">
             <option value="0">Fixed Carport</option>
