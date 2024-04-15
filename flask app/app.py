@@ -283,9 +283,9 @@ def solar():
 
     ####### Finical Plots ########
     projLife = 30 # years
-    degredation_percent = 0.4 # yearly percent output decrease
-    total_degredation = degredation_percent*projLife 
-    avg_degredation = total_degredation/2
+    #degredation_percent = 0.4 # yearly percent output decrease
+    #total_degredation = degredation_percent*projLife 
+    avg_degredation = 0.935
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_ac_yearly
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = total_solar_installed_cost
@@ -296,10 +296,10 @@ def solar():
     total_project_rev_with_degredation = yearly_revenue*avg_degredation*projLife
    
     # Calculate ROI for each generation and buyback pricing
-    roi = total_project_rev_with_degredation / upfront_cost *100
+    roi = (total_project_rev_with_degredation-upfront_cost) / upfront_cost *100
 
     # Calculate Payback Period
-    payback_period = upfront_cost / (yearly_revenue*0.935) # Days to payback
+    payback_period = upfront_cost / (yearly_revenue*avg_degredation) # Days to payback
     
     min_buyback_total_rev = total_project_rev_with_degredation[3][0]
     total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
@@ -774,7 +774,7 @@ def wind():
     projLife = 30 # years
     degredation_percent = 0.6 # percent output decrease per year
     total_degredation = degredation_percent*projLife #percent decrease after projectlife
-    avg_degredation = total_degredation/2
+    avg_degredation = (100-total_degredation/2)/100
     
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_yearly_generation
     buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
@@ -786,10 +786,10 @@ def wind():
     total_project_rev_with_degredation = yearly_revenue*avg_degredation*projLife
 
     # Calculate ROI for each generation and buyback pricing
-    roi = yearly_revenue*projLife / upfront_cost *100
+    roi = (total_project_rev_with_degredation-upfront_cost) / upfront_cost *100
 
     # Calculate Payback Period
-    payback_period = upfront_cost / (yearly_revenue) # Days to payback
+    payback_period = upfront_cost / (yearly_revenue*avg_degredation) # Days to payback
     
     min_buyback_total_rev = total_project_rev_with_degredation[3][0]
     total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
