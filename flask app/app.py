@@ -40,6 +40,9 @@ def home():
         for key in session_keys:
             session[key] = 0  # Resetting each to zero
             
+        for key in [ 'wind_visited', 'battery_visited']:
+            session.pop(key, None)
+            
         # Store existing form data in session
         session['surface_area'] = request.form.get('surfaceArea')
         if session['surface_area'] == '':
@@ -1170,6 +1173,12 @@ def battery():
     
     amount_earned_min = min_profit-total_upfront_battery_cost
     
+    # update session with costs
+    session['battery_upfront_cost'] = total_upfront_battery_cost
+    # update session with revenue including degredation based on 25to100 
+    session['battery_project_revenue'] = min_profit
+    # project profit
+    session['battery_project_profit'] = amount_earned_min
     
     session['battery_visited'] = True
     session.modified = True
@@ -1376,9 +1385,41 @@ def summary():
     # project profit
     solar_project_profit = session.get('solar_project_profit', 0)
     
+    # Battery
+    battery_upfront_cost = session.get('battery_upfront_cost', 0)
+    # update session with revenue including degredation based on 25to100 
+    battery_project_revenue = session.get('battery_project_revenue', 0)
+    # project profit
+    battery_project_profit = session.get('battery_project_profit', 0)
+    
+    # Total Project Cost
+    total_project_costs = battery_upfront_cost + solar_total_cost + wind_upfront_cost
+    # Total project Revenue
+    total_project_revenue = battery_project_revenue + solar_project_revenue + wind_project_revenue
+    # Total Project Profit
+    total_project_profit = total_project_revenue - total_project_costs
+    
+    # total project lifetime
+    total_lifetime = 30 # years
+    
+    # total project ROI
+    total_roi = total_project_profit/total_project_costs * 100 # [%] return
+    
+    # adjusted payback period based on fluctauting yearly revenues and degredation
+    total_payback_period = total_project_costs/(total_project_revenue/total_lifetime)
+    
     
     return render_template(
         'summary.html',
+        total_project_costs=total_project_costs,
+        total_project_revenue=total_project_revenue,
+        total_project_profit=total_project_profit,
+        total_lifetime=total_lifetime,
+        total_roi=total_roi,
+        total_payback_period=total_payback_period,
+        battery_upfront_cost=battery_upfront_cost,
+        battery_project_revenue=battery_project_revenue,
+        battery_project_profit=battery_project_profit,
         wind_upfront_cost=wind_upfront_cost, 
         wind_project_revenue=wind_project_revenue,
         wind_project_payback_period=wind_project_payback_period,
