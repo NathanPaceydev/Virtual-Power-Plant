@@ -904,7 +904,7 @@ def wind():
     session['wind_upfront_cost'] = wind_cost
     
     # update session with revenue including degredation based on $0.1/kWh
-    session['wind_project_revenue'] = total_wind_revenue
+    session['wind_project_revenue'] = min_buyback_total_rev
     session['wind_project_payback_period'] = min_buyback_payback_period
     session['wind_project_roi'] = min_buyback_roi
     # project profit
