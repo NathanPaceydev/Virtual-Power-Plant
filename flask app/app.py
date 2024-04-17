@@ -136,15 +136,14 @@ def solar():
         "api_key": "rS4jhBrbjOjG2Rs1d2PZD6HGaIvO1gjDofyabEOV",
         "azimuth": 180,
         "system_capacity": system_capacity_kW,
-        "losses": 14.08,
+        "losses": 14.0,
         "array_type": array_type_num,
         "module_type": module_type_num,
         "gcr": 0.4,
         "dc_ac_ratio": 1.2,
-        "inv_eff": 96.0,
+        "inv_eff": 98.0, # inverter efficeny 
         "radius": 0,
         "timeframe": 'hourly',
-        "dataset": "nsrdb",
         "tilt": float(tilt),
         "address": postal_code,
         
