@@ -734,7 +734,9 @@ def wind():
     # funtion to take in houly wind speed and calculate the kW produced in that hour
     def wind_output_fit(x_wind_speed):
         # Use a vectorized approach to handle an array of wind speeds
-        output = np.where((x_wind_speed > 11) | (x_wind_speed < 3), 0, 51 + (119 / np.pi) * np.arctan(0.8 * x_wind_speed - 6))
+        output = np.where((x_wind_speed >= 12), 100, 
+                  np.where(x_wind_speed < 3, 0, 
+                           51 + (119 / np.pi) * np.arctan(0.8 * x_wind_speed - 6)))
         return output
 
     # Apply the function to calculate the power output for each hour
