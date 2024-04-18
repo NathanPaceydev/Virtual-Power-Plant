@@ -1194,8 +1194,11 @@ def battery():
     session['battery_visited'] = True
     session.modified = True
     
+    battery_final_percent_int = battery_final_percent*100
+    
     return render_template(
         'battery.html', 
+        battery_final_percent_int=battery_final_percent_int,
         battery_capacity=battery_capacity, 
         battery_runtime=battery_runtime, 
         battery_final_percent=battery_final_percent,
