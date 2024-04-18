@@ -1279,7 +1279,7 @@ def pricing():
     data_cleaned.dropna(subset=['HOEP'], inplace=True)
 
     # Plotting with Plotly
-    hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $)'})
+    hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $ CAD)'})
     hourly_price_fig.update_xaxes(tickangle=45)
     
     hourly_price_2023= data_cleaned['HOEP']
@@ -1323,7 +1323,7 @@ def pricing():
     # Define the layout
     layout = go.Layout(title='Average Hourly Energy Prices (HOEP) for Each Hour Over Years with Error Bars',
                        xaxis=dict(title='Hour of the Day'),
-                       yaxis=dict(title='Average HOEP (in $)'),
+                       yaxis=dict(title='Average HOEP per MWh (in $ CAD)'),
                        showlegend=True)
 
     # Create figure and convert to HTML
