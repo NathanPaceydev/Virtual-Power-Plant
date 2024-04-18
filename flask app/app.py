@@ -1330,9 +1330,10 @@ def pricing():
     hourly_avg_price_fig = go.Figure(data=traces, layout=layout)
     hourly_avg_price_plot = hourly_avg_price_fig.to_html(full_html=False)
     
+    three_year_average = np.average(combined_hourly_avg)
     
 
-    return render_template('pricing.html', average_2023=average_2023, hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
+    return render_template('pricing.html', three_year_average=three_year_average, average_2023=average_2023, hourly_price_plot=hourly_price_plot, hourly_avg_price_plot=hourly_avg_price_plot)
 
 
 @app.route('/download-csv')
