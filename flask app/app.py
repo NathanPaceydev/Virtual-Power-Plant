@@ -286,7 +286,7 @@ def solar():
     #total_degredation = degredation_percent*projLife 
     avg_degredation = 0.935
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_ac_yearly
-    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    buyback_pricing = np.array([0.02, 0.05, 0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = total_solar_installed_cost
     
     # Calculating yearly revenue for each generation scenario
@@ -305,10 +305,10 @@ def solar():
     non_zero_revenue = yearly_revenue * avg_degredation != 0
     payback_period[non_zero_revenue] = upfront_cost / (yearly_revenue[non_zero_revenue] * avg_degredation)
 
-    min_buyback_total_rev = total_project_rev_with_degredation[3][0]
+    min_buyback_total_rev = total_project_rev_with_degredation[3][2]
     total_project_profit_w_degredation = min_buyback_total_rev - upfront_cost
-    min_buyback_roi = roi[3][0]
-    min_buyback_payback_period = payback_period[3][0]
+    min_buyback_roi = roi[3][2]
+    min_buyback_payback_period = payback_period[3][2]
     
     
     # Creating Plotly plot
@@ -783,7 +783,7 @@ def wind():
     avg_degredation = (100-total_degredation/2)/100
     
     generation_array = np.array([1/3, 1/2, 2/3, 1, 1.2, 1.4, 1.6, 2]) * total_yearly_generation
-    buyback_pricing = np.array([0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
+    buyback_pricing = np.array([0.02, 0.05, 0.1, 0.13, 0.16, 0.19, 0.22, 0.25, 0.28, 0.31, 0.34, 0.37, 0.4])
     upfront_cost = wind_cost
     
     # Calculating yearly revenue for each generation scenario
@@ -802,10 +802,10 @@ def wind():
     non_zero_revenue = yearly_revenue * avg_degredation != 0
     payback_period[non_zero_revenue] = upfront_cost / (yearly_revenue[non_zero_revenue] * avg_degredation)
     
-    min_buyback_total_rev = total_project_rev_with_degredation[3][0]
+    min_buyback_total_rev = total_project_rev_with_degredation[3][2]
     total_project_profit_w_degredation = min_buyback_total_rev-upfront_cost
-    min_buyback_roi = roi[3][0]
-    min_buyback_payback_period = payback_period[3][0]
+    min_buyback_roi = roi[3][2]
+    min_buyback_payback_period = payback_period[3][2]
     
     # Creating Plotly plot
     data = []
