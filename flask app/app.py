@@ -63,6 +63,9 @@ def home():
         session['battery_final_percent'] = request.form.get('finalPercentage', type=int)
         session['battery_max_cycles'] = request.form.get('maxCycles', type=int)
         
+        # buyback price
+        session['buyback_price'] = request.form.get('buybackPrice', type=float)
+        
         # Redirect to the solar page
         return redirect(url_for('solar'))
 
@@ -89,6 +92,8 @@ def solar():
     array_type_num = session.get('array_type', 'Not provided')
     module_type_num = session.get('module_type', 'Not provided')
     tilt = session.get('tilt', 'Not provided')
+    buyback_price = session.get('buyback_price', 'Not provided')
+
     
     array_types = {
         '0': 'Fixed Carport',
@@ -431,6 +436,7 @@ def solar():
     
     return render_template(
         'solar.html', 
+        buyback_price=buyback_price,
         total_project_profit_w_degredation=total_project_profit_w_degredation,
         min_buyback_roi = min_buyback_roi,
         min_buyback_payback_period = min_buyback_payback_period,
