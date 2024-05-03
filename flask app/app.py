@@ -436,7 +436,7 @@ def solar():
     
     return render_template(
         'solar.html', 
-        buyback_price=buyback_price,
+        buyback_price=0,
         total_project_profit_w_degredation=total_project_profit_w_degredation,
         min_buyback_roi = min_buyback_roi,
         min_buyback_payback_period = min_buyback_payback_period,
