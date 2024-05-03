@@ -64,7 +64,7 @@ def home():
         session['battery_max_cycles'] = request.form.get('maxCycles', type=int)
         
         # buyback price
-        session['buyback_price'] = request.form.get('buybackPrice', type=float)
+        #session['buyback_price'] = request.form.get('buybackPrice', type=float)
         
         # Redirect to the solar page
         return redirect(url_for('solar'))
@@ -92,7 +92,7 @@ def solar():
     array_type_num = session.get('array_type', 'Not provided')
     module_type_num = session.get('module_type', 'Not provided')
     tilt = session.get('tilt', 'Not provided')
-    buyback_price = session.get('buyback_price', 'Not provided')
+    #buyback_price = session.get('buyback_price', 'Not provided')
 
     
     array_types = {
