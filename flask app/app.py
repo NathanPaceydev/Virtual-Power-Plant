@@ -27,14 +27,69 @@ import os
 
 app = Flask(__name__)
 
-app.secret_key = 'your_secret_key_here'
+API_KEY_NREL = os.getenv("NREL_API_KEY", "9iPekv2yf4nAi4py1XY2aHtG54udQ1DhYXKLXHnl")
+app.secret_key = os.urandom(24)  # Generate a random secret key for session management
+
+
+
+def geocode_postal_code(postal_code, city="", country=""):
+    import requests
+
+    url = "https://nominatim.openstreetmap.org/search"
+    headers = {
+        "User-Agent": "flask-app-global-geocoder/1.0 (your@email.com)"
+    }
+
+    def try_geocode(params):
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            if response.status_code == 200:
+                results = response.json()
+                if results:
+                    lat = float(results[0]['lat'])
+                    lon = float(results[0]['lon'])
+                    location_string = results[0].get('display_name', 'Unknown')
+                    print(f"✅ Geocoded to Latitude: {lat}, Longitude: {lon}, Location: {location_string}")
+                    return lat, lon, location_string
+        except Exception as e:
+            print(f"❌ Exception during geocoding: {e}")
+        return None, None, "Unknown"
+
+    # Try structured query first
+    structured_params = {
+        "format": "json",
+        "limit": 1,
+        "postalcode": postal_code,
+        "city": city,
+        "country": country
+    }
+    lat, lon, location = try_geocode(structured_params)
+
+    if lat is None or lon is None:
+        # Fall back to single string query
+        fallback_query = ", ".join(filter(None, [postal_code, city, country]))
+        print(f"🌍 Structured lookup failed, falling back to freeform: '{fallback_query}'")
+        fallback_params = {
+            "format": "json",
+            "limit": 1,
+            "q": fallback_query
+        }
+        lat, lon, location = try_geocode(fallback_params)
+
+    if lat is None or lon is None:
+        print(f"⚠️ Still no geocoding result for: {postal_code}, {city}, {country}")
+    return lat, lon, location
+
+
+
+
 
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
         # Reset the necessary session variables to zero
-        session_keys = ['surface_area', 'postal_code', 'array_type', 'module_type', 'tilt',
+        session_keys = ['surface_area', 'country', 'postal_code', 'array_type', 'module_type', 'tilt',
                         'num_turbines', 'turbineHeight', 'battery_consumption',
                         'battery_runtime', 'battery_final_percent', 'battery_max_cycles']
         for key in session_keys:
@@ -47,8 +102,22 @@ def home():
         session['surface_area'] = request.form.get('surfaceArea')
         if session['surface_area'] == '':
             session['surface_area'] = 0
-            
-        session['postal_code'] = request.form.get('postalCode')
+
+        # Clean up messy input like "Canada, Kentucky, USA"
+        raw_country = request.form.get('country', '').strip()
+
+        country_parts = [part.strip() for part in raw_country.split(',')]
+        if country_parts:
+            clean_country = country_parts[-1]  # Take the last part
+        else:
+            clean_country = raw_country
+
+        session['country'] = clean_country
+
+        
+        session['city'] = request.form.get('city', '').strip()
+        session['postal_code'] = request.form.get('postalCode', '').strip()
+        
         session['array_type'] = request.form.get('arrayType')
         session['module_type'] = request.form.get('moduleType')
         session['tilt'] = request.form.get('tilt')
@@ -73,22 +142,44 @@ def home():
 
 @app.route('/location', methods=['GET','POST'])
 def location():
-    postal_code = session.get('postal_code', 'Not provided')
-    latitude = session.get('latitude', 'Not provided')
-    longitude = session.get('longitude', 'Not provided')
-    location = session.get('location', 'Not provided')
-    elivation = session.get('elivation', 'Not provided')
-    distance = session.get('distance', 'Not provided')
-    
-    return render_template('location.html', location=location, elivation=elivation, distance=distance, latitude=latitude, longitude=longitude, postal_code=postal_code)
+    def to_float_or_none(val):
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    context = {
+        'postal_code': session.get('postal_code', 'Not provided'),
+        'latitude': session.get('latitude', 'Not provided'),
+        'longitude': session.get('longitude', 'Not provided'),
+        'location': session.get('location', 'Not provided'),
+        'elivation': to_float_or_none(session.get('elivation')),
+        'distance': session.get('distance', 'Not provided')
+    }
+
+    return render_template('location.html', **context)
 
 
-#TODO divide by zero error    
+
+
 @app.route('/solar', methods=['GET', 'POST'])
 def solar():
+    print("✅ Flask route /solar was reached")
+
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
+    
     postal_code = session.get('postal_code', 'Not provided')
+    
+    city = session.get('city', '')
+    country = session.get('country', '')
+    postal_code = session.get('postal_code', '')
+
+    lat, lon, location_string = geocode_postal_code(postal_code, city, country)
+
+    # print this out to the user in the terminal
+    print(f"Geocoded {postal_code} to Latitude: {lat}, Longitude: {lon}, Location: {location_string}")
+    
     array_type_num = session.get('array_type', 'Not provided')
     module_type_num = session.get('module_type', 'Not provided')
     tilt = session.get('tilt', 'Not provided')
@@ -132,13 +223,14 @@ def solar():
 
     #array_type_num = array_type_options[array_type]
     #module_type_num = module_type_options[module_type]
+    
 
     # Define the URL for the PVWatts V8 API
     url = "https://developer.nrel.gov/api/pvwatts/v8.json"
 
     # Specify the parameters for the API request
     params = {
-        "api_key": "rS4jhBrbjOjG2Rs1d2PZD6HGaIvO1gjDofyabEOV",
+        "api_key": API_KEY_NREL,
         "azimuth": 180,
         "system_capacity": system_capacity_kW,
         "losses": 14.0,
@@ -150,7 +242,8 @@ def solar():
         "radius": 0,
         "timeframe": 'hourly',
         "tilt": float(tilt),
-        "address": postal_code,
+        "lat": lat,
+        "lon": lon,
         
     }
 
@@ -194,14 +287,12 @@ def solar():
         temp_ambient_monthly = data["outputs"]["tamb"]
         station_info = data['station_info']
         
-        latitude = station_info["lat"]
-        longitude = station_info["lon"]
-        location_string = str(station_info["city"])+', '+str(station_info["state"])+', '+str(station_info["country"])
+        
         elivation = station_info['elev'] #[m]
         distance_from_site = station_info['distance']
         
-        session['latitude'] = latitude
-        session['longitude'] = longitude
+        session['latitude'] = lat
+        session['longitude'] = lon
         session['postal_code'] = postal_code
         session['location'] = location_string
         session['elivation'] = elivation
