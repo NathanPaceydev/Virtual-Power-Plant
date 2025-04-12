@@ -261,7 +261,7 @@ def solar():
     solrad_monthly = []
     temp_cell_monthly = []
     temp_ambient_monthly = []
-    latitude = longitude = location_string = elivation = distance_from_site = 'Not available'
+    latitude = longitude = elivation = distance_from_site = 'Not available'
     total_dc_yearly = total_ac_yearly = 0
 
     # Check if the request was successful
