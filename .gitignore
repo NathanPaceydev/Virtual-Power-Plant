@@ -1,1 +1,10 @@
-\flask app/venv/*
+__pycache__/
+*.py[cod]
+
+.venv/
+venv/
+flask app/venv/
+
+.cache
+.cache.sqlite
+flask app/.cache.sqlite

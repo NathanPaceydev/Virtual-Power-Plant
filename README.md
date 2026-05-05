@@ -23,6 +23,55 @@ Want to see it in action?
 
 [![Watch the video](https://img.youtube.com/vi/x4Zi4jsRHSM/0.jpg)](https://www.youtube.com/watch?v=x4Zi4jsRHSM)
 
+## Live Demo Hosting
+
+This repo is configured for a free Flask web service on Render so anyone can open a public demo URL without cloning the project.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/NathanPaceydev/Virtual-Power-Plant)
+
+### Render deployment
+
+The included `render.yaml` creates a free Python web service using only the `flask app` folder:
+
+- Root directory: `flask app`
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app --workers 1 --threads 2 --timeout 180`
+- Health check: `/healthz`
+- Python version: `3.11.11`
+
+Manual setup is also straightforward:
+
+1. Push this repository to GitHub.
+2. In Render, create a new Web Service or Blueprint from the repository.
+3. Choose the free instance type.
+4. Set the root directory to `flask app` if you are not using the Blueprint.
+5. Use the build and start commands above.
+6. After the deploy finishes, share the generated `https://<service-name>.onrender.com` URL.
+
+Notes checked on May 5, 2026: Render supports free Python web services, but free instances spin down after 15 minutes without traffic and may take about a minute to wake up. This is fine for demos, not production. PythonAnywhere free accounts currently have a 512 MiB disk limit and a 1-month-expiring web app, so the full repository plus dependencies is likely too large unless you deploy only the Flask folder.
+
+### PythonAnywhere fallback
+
+If you still want to try PythonAnywhere, use a manual Flask web app and upload only the `flask app` folder to save disk space. Install dependencies with:
+
+```bash
+pip install --user -r requirements.txt
+```
+
+Then configure the PythonAnywhere WSGI file like this, replacing `<username>` with your account name:
+
+```python
+import sys
+
+project_home = "/home/<username>/flask app"
+if project_home not in sys.path:
+    sys.path.insert(0, project_home)
+
+from app import app as application
+```
+
+Add a static files mapping in PythonAnywhere from `/static/` to `/home/<username>/flask app/static`.
+
 ---
 
 ## 👩‍💻 Developer Guide
@@ -53,4 +102,3 @@ Let’s build better tools for the energy transition 🌍
 ## 📜 License
 
 [MIT License](LICENSE)
-
