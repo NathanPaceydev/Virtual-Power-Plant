@@ -172,6 +172,8 @@ def geocode_postal_code(postal_code, city="", country=""):
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
+        session['has_submitted_project'] = True
+
         # Reset the necessary session variables to zero
         session_keys = ['surface_area', 'country', 'postal_code', 'array_type', 'module_type', 'tilt',
                         'num_turbines', 'turbineHeight', 'battery_consumption',
