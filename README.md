@@ -35,7 +35,7 @@ The included `render.yaml` creates a free Python web service using only the `fla
 
 - Root directory: `flask app`
 - Build command: `pip install -r requirements.txt`
-- Start command: `gunicorn app:app --workers 1 --threads 2 --timeout 180`
+- Start command: `gunicorn app:app --workers 1 --threads 2 --timeout 180 --max-requests 20 --max-requests-jitter 5`
 - Health check: `/healthz`
 - Python version: `3.11.11`
 
@@ -49,6 +49,8 @@ Manual setup is also straightforward:
 6. After the deploy finishes, share the generated `https://<service-name>.onrender.com` URL.
 
 Notes checked on May 5, 2026: Render supports free Python web services, but free instances spin down after 15 minutes without traffic and may take about a minute to wake up. This is fine for demos, not production. PythonAnywhere free accounts currently have a 512 MiB disk limit and a 1-month-expiring web app, so the full repository plus dependencies is likely too large unless you deploy only the Flask folder.
+
+The app is tuned for Render's small free instance: Plotly is loaded once from the browser CDN instead of being embedded in every chart, unused wind API variables are not requested, heavy unused scientific packages are excluded, and Gunicorn recycles workers periodically to avoid memory creep during demos.
 
 ### PythonAnywhere fallback
 

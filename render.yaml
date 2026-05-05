@@ -5,10 +5,12 @@ services:
     plan: free
     rootDir: "flask app"
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 1 --threads 2 --timeout 180
+    startCommand: gunicorn app:app --workers 1 --threads 2 --timeout 180 --max-requests 20 --max-requests-jitter 5
     healthCheckPath: /healthz
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: SECRET_KEY
         generateValue: true
+      - key: MALLOC_ARENA_MAX
+        value: 2

@@ -1,15 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, session, Response
 import requests
 import openmeteo_requests
-from scipy.optimize import curve_fit
-import matplotlib.dates as mdates
 import calendar
 import requests_cache
 from retry_requests import retry
 import pandas as pd
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.io as pio
 pio.templates.default = "none"
@@ -19,15 +16,20 @@ import plotly.graph_objs as go
 from plotly.graph_objs import Scatter, Figure
 
 from plotly.subplots import make_subplots
-from scipy.interpolate import interp1d
 import glob
 import os
+from functools import lru_cache
 from pathlib import Path
 
 
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+HOEP_FILES = {
+    '2021': 'PUB_PriceHOEPPredispOR_2021_v395.csv',
+    '2022': 'PUB_PriceHOEPPredispOR_2022_v396.csv',
+    '2023': 'PUB_PriceHOEPPredispOR_2023_v393.csv',
+}
 
 API_KEY_NREL = os.getenv("NREL_API_KEY", "9iPekv2yf4nAi4py1XY2aHtG54udQ1DhYXKLXHnl")
 
@@ -37,6 +39,63 @@ app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
 
 def static_path(*parts):
     return str(STATIC_DIR.joinpath(*parts))
+
+
+def plot_html(fig):
+    return fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        config={"responsive": True},
+    )
+
+
+def log_wind_profile(z, speed_10m, speed_100m):
+    z = np.asarray(z, dtype=float)
+    slope = (speed_100m - speed_10m) / (np.log(100) - np.log(10))
+    intercept = speed_10m - slope * np.log(10)
+    return intercept + slope * np.log(z)
+
+
+def linear_interpolator(x_values, y_values):
+    x_values = np.asarray(x_values, dtype=float)
+    y_values = np.asarray(y_values, dtype=float)
+    order = np.argsort(x_values)
+    x_values = x_values[order]
+    y_values = y_values[order]
+
+    def interpolate(values):
+        scalar_input = np.isscalar(values)
+        values_array = np.atleast_1d(np.asarray(values, dtype=float))
+        result = np.interp(values_array, x_values, y_values)
+
+        if len(x_values) >= 2:
+            left = values_array < x_values[0]
+            right = values_array > x_values[-1]
+            left_slope = (y_values[1] - y_values[0]) / (x_values[1] - x_values[0])
+            right_slope = (y_values[-1] - y_values[-2]) / (x_values[-1] - x_values[-2])
+            result[left] = y_values[0] + (values_array[left] - x_values[0]) * left_slope
+            result[right] = y_values[-1] + (values_array[right] - x_values[-1]) * right_slope
+
+        return float(result[0]) if scalar_input else result
+
+    return interpolate
+
+
+@lru_cache(maxsize=None)
+def load_hoep_data(year):
+    data = pd.read_csv(
+        static_path('Pricing_Data', HOEP_FILES[year]),
+        skiprows=3,
+        usecols=['Date', 'Hour', 'HOEP'],
+        dtype={'Hour': 'int16', 'HOEP': 'float64'},
+    )
+    data['Hour'] = data['Hour'] - 1
+    return data
+
+
+@lru_cache(maxsize=None)
+def hourly_hoep_prices(year='2023'):
+    return load_hoep_data(year)['HOEP'].to_numpy()
 
 
 @app.route('/healthz')
@@ -341,11 +400,11 @@ def solar():
 
     
     # Convert plots to HTML
-    plot1 = fig1.to_html(full_html=False)
-    plot2 = fig2.to_html(full_html=False)
-    plot3 = fig3.to_html(full_html=False)
-    plot4 = fig4.to_html(full_html=False)
-    plot5 = fig5.to_html(full_html=False)
+    plot1 = plot_html(fig1)
+    plot2 = plot_html(fig2)
+    plot3 = plot_html(fig3)
+    plot4 = plot_html(fig4)
+    plot5 = plot_html(fig5)
     
     # adjust solar cost based on choice
     # premium solar pannel
@@ -436,7 +495,7 @@ def solar():
     fig6 = go.Figure(data=data, layout=layout)
 
     # Encoding plot to HTML
-    solar_rev_plot = fig6.to_html(full_html=False)
+    solar_rev_plot = plot_html(fig6)
     
     
     # Create empty list to store Plotly traces
@@ -458,7 +517,7 @@ def solar():
     # Create figure and add traces
     fig7 = go.Figure(data=traces, layout=layout)
     # Encoding plot to HTML
-    solar_ROI_plot = fig7.to_html(full_html=False)
+    solar_ROI_plot = plot_html(fig7)
     
     # Create empty list to store Plotly traces
     traces = []
@@ -478,31 +537,11 @@ def solar():
 
     # Create figure and add traces
     fig8 = go.Figure(data=traces, layout=layout)
-    solar_payback_plot = fig8.to_html(full_html=False)
+    solar_payback_plot = plot_html(fig8)
 
-    
-    # profit calcs
-    # File paths for each year's CSV data
-    file_paths = {
-        '2023': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2023_v393.csv')
-    }
-    
-    # Combine all years of data into a single DataFrame
-    all_data = pd.DataFrame()
-    for file_path in file_paths.values():
-        yearly_data = pd.read_csv(file_path, skiprows=2)
-        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
-        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
-        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
-        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
-        all_data = pd.concat([all_data, yearly_data])
-
-    # Clean the data and reset index
-    all_data.reset_index(drop=True, inplace=True)
-    all_data.dropna(subset=['HOEP'], inplace=True)
     
     # Load the price data
-    hourly_prices = all_data['HOEP'].values  # $ /MWh / h Make sure to define 'all_data' with hourly price data
+    hourly_prices = hourly_hoep_prices('2023')  # $ /MWh / h
     hourly_price_per_Wh = hourly_prices/1000000 # $[CAD] / W (in one hour)
     hourly_profit = ac_hourly * hourly_price_per_Wh
     
@@ -521,7 +560,7 @@ def solar():
     )
 
     # Convert the figure to HTML for rendering in Flask
-    hourly_solar_revenue_plot = hourly_solar_revenue_fig.to_html(full_html=False)
+    hourly_solar_revenue_plot = plot_html(hourly_solar_revenue_fig)
     
     # update session with costs
     session['solar_pannel_cost'] = solar_cost
@@ -599,7 +638,7 @@ def wind():
         "longitude": longitude,
         "start_date": "2022-01-01",
         "end_date": "2022-12-31",
-        "hourly": ["temperature_2m", "relative_humidity_2m", "surface_pressure", "wind_speed_10m", "wind_speed_100m", "wind_direction_10m", "wind_direction_100m"]
+        "hourly": ["wind_speed_10m", "wind_speed_100m"]
     }
     responses = openmeteo.weather_api(url, params=params)
 
@@ -609,13 +648,8 @@ def wind():
 
     # Process hourly data. The order of variables needs to be the same as requested.
     hourly = response.Hourly()
-    hourly_temperature_2m = hourly.Variables(0).ValuesAsNumpy()
-    hourly_relative_humidity_2m = hourly.Variables(1).ValuesAsNumpy()
-    hourly_surface_pressure = hourly.Variables(2).ValuesAsNumpy()
-    hourly_wind_speed_10m = hourly.Variables(3).ValuesAsNumpy()
-    hourly_wind_speed_100m = hourly.Variables(4).ValuesAsNumpy()
-    hourly_wind_direction_10m = hourly.Variables(5).ValuesAsNumpy()
-    hourly_wind_direction_100m = hourly.Variables(6).ValuesAsNumpy()
+    hourly_wind_speed_10m = hourly.Variables(0).ValuesAsNumpy()
+    hourly_wind_speed_100m = hourly.Variables(1).ValuesAsNumpy()
     
     hourly_data = {
         "date": pd.date_range(
@@ -625,20 +659,9 @@ def wind():
         )
     }
 
-    hourly_data["temperature_2m"] = hourly_temperature_2m
-    hourly_data["relative_humidity_2m"] = hourly_relative_humidity_2m
-    hourly_data["surface_pressure"] = hourly_surface_pressure
-    hourly_data["wind_speed_10m"] = hourly_wind_speed_10m
-    hourly_data["wind_speed_100m"] = hourly_wind_speed_100m
-    hourly_data["wind_direction_10m"] = hourly_wind_direction_10m
-    hourly_data["wind_direction_100m"] = hourly_wind_direction_100m
-
-    hourly_dataframe = pd.DataFrame(data = hourly_data)
-    
-    
     # Convert wind speeds from km/h to m/s
-    hourly_data["wind_speed_10m"] = hourly_data["wind_speed_10m"] / 3.6
-    hourly_data["wind_speed_100m"] = hourly_data["wind_speed_100m"] / 3.6
+    hourly_data["wind_speed_10m"] = hourly_wind_speed_10m / 3.6
+    hourly_data["wind_speed_100m"] = hourly_wind_speed_100m / 3.6
 
     # Add the converted wind speeds to the DataFrame
     hourly_dataframe = pd.DataFrame(data=hourly_data)
@@ -667,36 +690,31 @@ def wind():
     fig1 = px.line(monthly_wind_speed_df, x='Month', y=['Wind Speed at 10m (m/s)', 'Wind Speed at 100m (m/s)'],
                   labels={'value': 'Wind Speed (m/s)', 'variable': 'Measurement'}, title='Monthly Average Wind Speeds')
 
-    # Heights and average wind speeds for curve fitting
+    # Heights and average wind speeds for logarithmic wind profile fitting
     heights = np.array([10, 100])  # Heights in meters
     average_wind_speeds = np.array([
         monthly_wind_speed_10m.mean(),
         monthly_wind_speed_100m.mean()
     ])
 
-    # Define the logarithmic wind profile function
-    def log_wind_profile(z, a, b):
-        return a + b * np.log(z)
-
-    # Perform curve fitting
     try:
-        popt, pcov = curve_fit(log_wind_profile, heights, average_wind_speeds)
-        
         # Generate heights for the fitted curve visualization
         fitted_heights = np.linspace(10, 100, 100)  # From 10m to 100m
-        fitted_speeds = log_wind_profile(fitted_heights, *popt)
+        fitted_speeds = log_wind_profile(fitted_heights, average_wind_speeds[0], average_wind_speeds[1])
+        slope = (average_wind_speeds[1] - average_wind_speeds[0]) / (np.log(100) - np.log(10))
+        intercept = average_wind_speeds[0] - slope * np.log(10)
 
         # Create Plotly figure for the fitted curve and original data
         fig2 = px.scatter(x=heights, y=average_wind_speeds, labels={'x': 'Height (m)', 'y': 'Wind Speed (m/s)'}, title='Wind Speed vs. Height with Logarithmic Fit')
-        fig2.add_scatter(x=fitted_heights, y=fitted_speeds, mode='lines', name=f'Fitted: v = {popt[0]:.2f} + {popt[1]:.2f} * ln(z)')
+        fig2.add_scatter(x=fitted_heights, y=fitted_speeds, mode='lines', name=f'Fitted: v = {intercept:.2f} + {slope:.2f} * ln(z)')
         
     except Exception as e:
         print("An error occurred during curve fitting:", e)
         fig2 = None
     
     # Convert Plotly figures to HTML
-    plot1 = fig1.to_html(full_html=False) if 'fig1' in locals() else None
-    plot2 = fig2.to_html(full_html=False) if fig2 else None
+    plot1 = plot_html(fig1) if 'fig1' in locals() else None
+    plot2 = plot_html(fig2) if fig2 else None
     
     ### Monthly Specific Plotting ###
     # Sample wind speeds at 10m and 100m for demonstration
@@ -705,25 +723,9 @@ def wind():
     wind_speed_100m = hourly_data["wind_speed_100m"]
     
     # Define the heights for the wind speeds we have and the ones we want to interpolate
-    measured_heights = np.array([10, 100])
     interpolate_heights = np.array([18, 24, 30, 36, 55, 80])
-    interpolated_speeds = {f'wind_speed_{h}m': [] for h in interpolate_heights}
-
-    # Iterate over each hour
-    for i in range(len(wind_speed_10m)):
-        # Current wind speeds at 10m and 100m for the hour
-        current_speeds = np.array([wind_speed_10m[i], wind_speed_100m[i]])
-        
-        # Fit the curve for this hour's data
-        popt, _ = curve_fit(log_wind_profile, measured_heights, current_speeds)
-        
-        # Use the obtained fit to calculate speeds at desired heights
-        for h in interpolate_heights:
-            interpolated_speed = log_wind_profile(h, *popt)
-            interpolated_speeds[f'wind_speed_{h}m'].append(interpolated_speed)
-            
-    for height, speeds in interpolated_speeds.items():
-        hourly_data[height] = speeds
+    for height in interpolate_heights:
+        hourly_data[f'wind_speed_{height}m'] = log_wind_profile(height, wind_speed_10m, wind_speed_100m)
 
     # Convert hourly_data to a DataFrame
     hourly_dataframe = pd.DataFrame(data=hourly_data)
@@ -784,7 +786,7 @@ def wind():
     fig3.update_layout(title=f'Hourly Wind Speeds for {month_name} by Height')
 
     # Convert Plotly figure to HTML for Flask rendering
-    hourly_month_plot_html = fig3.to_html(full_html=False)
+    hourly_month_plot_html = plot_html(fig3)
     
     capacity_factor = 0.90 # [%] efficiency rating
     capicity_per_turbine = 100 #[kW]
@@ -837,7 +839,7 @@ def wind():
     )
 
     # Convert the figure to HTML
-    stat_plot_html = stat_fig.to_html(full_html=False)
+    stat_plot_html = plot_html(stat_fig)
     
     ######## Wind Generation ##########
     # see wind speed output relationship code to see how values were derived
@@ -863,7 +865,7 @@ def wind():
     total_yearly_generation = hourly_dataframe['total_power_gen'].sum()
 
     # Aggregate this hourly data by month
-    monthly_generation = hourly_dataframe.resample('M').sum()['total_power_gen']
+    monthly_generation = hourly_dataframe.resample('ME').sum()['total_power_gen']
 
     # Plot the monthly generation
     wind_month_fig = go.Figure()
@@ -879,7 +881,7 @@ def wind():
     )
 
     # You can convert this figure to HTML for Flask as before
-    monthly_gen_plot_html = wind_month_fig.to_html(full_html=False)
+    monthly_gen_plot_html = plot_html(wind_month_fig)
     
     ## calculate upfront cost for wind ##
     cost_per_turbine = 165709.29 #[CAD]
@@ -933,7 +935,7 @@ def wind():
     fig6 = go.Figure(data=data, layout=layout)
 
     # Encoding plot to HTML
-    wind_rev_plot = fig6.to_html(full_html=False)
+    wind_rev_plot = plot_html(fig6)
     
     
     # Create empty list to store Plotly traces
@@ -955,7 +957,7 @@ def wind():
     # Create figure and add traces
     fig7 = go.Figure(data=traces, layout=layout)
     # Encoding plot to HTML
-    wind_ROI_plot = fig7.to_html(full_html=False)
+    wind_ROI_plot = plot_html(fig7)
     
     # Create empty list to store Plotly traces
     traces = []
@@ -975,31 +977,11 @@ def wind():
 
     # Create figure and add traces
     fig8 = go.Figure(data=traces, layout=layout)
-    wind_payback_plot = fig8.to_html(full_html=False)
+    wind_payback_plot = plot_html(fig8)
 
 
-    # profit calcs
-    # File paths for each year's CSV data
-    file_paths = {
-        '2023': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2023_v393.csv')
-    }
-    
-    # Combine all years of data into a single DataFrame
-    all_data = pd.DataFrame()
-    for file_path in file_paths.values():
-        yearly_data = pd.read_csv(file_path, skiprows=2)
-        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
-        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
-        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
-        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
-        all_data = pd.concat([all_data, yearly_data])
-
-    # Clean the data and reset index
-    all_data.reset_index(drop=True, inplace=True)
-    all_data.dropna(subset=['HOEP'], inplace=True)
-    
     # Load the price data
-    hourly_prices = all_data['HOEP'].values  # $ /MWh / h Make sure to define 'all_data' with hourly price data
+    hourly_prices = hourly_hoep_prices('2023')  # $ /MWh / h
     hourly_price_per_kWh = hourly_prices/1000 # $[CAD] / kW (in one hour)
     hourly_wind_gen = hourly_dataframe['total_power_gen']
     hourly_revenue_wind = hourly_wind_gen*hourly_price_per_kWh # $[CAD] / h
@@ -1019,7 +1001,7 @@ def wind():
         plot_bgcolor='white'
     )
     
-    hourly_wind_revenue_plot = hourly_wind_revenue_fig.to_html(full_html=False)
+    hourly_wind_revenue_plot = plot_html(hourly_wind_revenue_fig)
 
     # update session with costs
     session['wind_upfront_cost'] = wind_cost
@@ -1114,12 +1096,9 @@ def battery():
         sorted_indices = np.argsort(data_array[:, 0])
         sorted_data = data_array[sorted_indices]
 
-        # Create a linear interpolation function
-        interpolation_func = interp1d(sorted_data[:, 0], sorted_data[:, 1], kind='linear')
-
         # Generate new x values for plotting the interpolation
         new_x = np.linspace(sorted_data[0, 0], sorted_data[-1, 0], num=500)
-        new_y = interpolation_func(new_x)
+        new_y = np.interp(new_x, sorted_data[:, 0], sorted_data[:, 1])
 
         # Plot the data
         label = os.path.basename(file_path).replace('.csv', '')
@@ -1138,30 +1117,10 @@ def battery():
 
     # Show the plot
     # Convert the figure to HTML and embed it
-    capacity_plot = fig.to_html(full_html=False)
-    
-    # get the HEOP pricing data
-    # File paths for each year's CSV data
-    file_paths = {
-        '2023': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2023_v393.csv')
-    }
-    
-    # Combine all years of data into a single DataFrame
-    all_data = pd.DataFrame()
-    for file_path in file_paths.values():
-        yearly_data = pd.read_csv(file_path, skiprows=2)
-        yearly_data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
-        yearly_data = yearly_data[['Date', 'Hour', 'HOEP']]
-        yearly_data = yearly_data[yearly_data['Hour'].apply(lambda x: x.isnumeric())]
-        yearly_data['HOEP'] = pd.to_numeric(yearly_data['HOEP'], errors='coerce')
-        all_data = pd.concat([all_data, yearly_data])
-
-    # Clean the data and reset index
-    all_data.reset_index(drop=True, inplace=True)
-    all_data.dropna(subset=['HOEP'], inplace=True)
+    capacity_plot = plot_html(fig)
     
     # Load the price data
-    hourly_prices = all_data['HOEP'].values  # Make sure to define 'all_data' with hourly price data
+    hourly_prices = hourly_hoep_prices('2023')
 
     # Directory containing degradation models
     folder_path = static_path('Battery-cycles')
@@ -1180,7 +1139,7 @@ def battery():
         cycle_numbers = sorted_data[0].values
         capacities = sorted_data[1].values / 100
 
-        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value="extrapolate")
+        capacity_func = linear_interpolator(cycle_numbers, capacities)
         basename = os.path.basename(file_path).replace('.csv', '')
         max_charge_level, min_charge_level = map(int, basename.split('to'))
         min_charge_level /= 100
@@ -1204,7 +1163,7 @@ def battery():
     )
 
     # Convert the figure to HTML for rendering in Flask
-    year_one_cap_plot = year_one_cap_fig.to_html(full_html=False)
+    year_one_cap_plot = plot_html(year_one_cap_fig)
     
     # battery revenue
     
@@ -1222,7 +1181,7 @@ def battery():
         cycle_numbers = sorted_data[0].values
         capacities = sorted_data[1].values / 100  # Convert percentages to fraction of initial capacity
 
-        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value="extrapolate")
+        capacity_func = linear_interpolator(cycle_numbers, capacities)
         basename = os.path.basename(file_path).replace('.csv', '')
         target_capacity = battery_final_percent * initial_capacity
 
@@ -1237,7 +1196,7 @@ def battery():
         cycle_numbers = sorted_data[0].values
         capacities = sorted_data[1].values / 100 # Scale to percentage
 
-        capacity_func = interp1d(cycle_numbers, capacities, bounds_error=False, fill_value='extrapolate')
+        capacity_func = linear_interpolator(cycle_numbers, capacities)
         basename = os.path.basename(file_path).replace('.csv', '')
         cycles = cycles_used[basename]  # Ensure this data is available from previous simulations
 
@@ -1255,7 +1214,7 @@ def battery():
         legend_title="SoC Types"
     )
 
-    cap_plot_all_time = cap_fig_all_time.to_html(full_html=False)
+    cap_plot_all_time = plot_html(cap_fig_all_time)
     
     # Now integrate the new profit plot:
     # Extract SoC types, corresponding profits, and cycles used for plotting
@@ -1283,7 +1242,7 @@ def battery():
     )
 
     # Convert the figure to HTML for rendering in Flask
-    profit_plot_html = profit_fig.to_html(full_html=False)
+    profit_plot_html = plot_html(profit_fig)
     
     # Find the minimum profit and its index
     min_profit = float(min(profit_values))
@@ -1381,15 +1340,8 @@ def simulate_daily_cycling(capacity_func, prices, initial_capacity, target_capac
 @app.route('/pricing', methods=['GET','POST'])
 def pricing():
     # Load and clean the data
-    file_path = static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2023_v393.csv')
-    data = pd.read_csv(file_path, skiprows=2, header=None)
-    data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
-    data_cleaned = data[['Date', 'Hour', 'HOEP']].dropna()
-    data_cleaned = data_cleaned[data_cleaned['Hour'] != 'Hour']
-    data_cleaned['Hour'] = data_cleaned['Hour'].astype(int) - 1
+    data_cleaned = load_hoep_data('2023').copy()
     data_cleaned['Datetime'] = pd.to_datetime(data_cleaned['Date']) + pd.to_timedelta(data_cleaned['Hour'], unit='h')
-    data_cleaned['HOEP'] = pd.to_numeric(data_cleaned['HOEP'], errors='coerce')
-    data_cleaned.dropna(subset=['HOEP'], inplace=True)
 
     # Plotting with Plotly
     hourly_price_fig = px.line(data_cleaned, x='Datetime', y='HOEP', title='Historical Hourly Energy Prices (HOEP) for 2023', labels={'HOEP': 'HOEP for 1 MWh (in $ CAD)'})
@@ -1399,26 +1351,13 @@ def pricing():
     average_2023 = np.mean(hourly_price_2023)
 
     # Convert plot to HTML
-    hourly_price_plot = hourly_price_fig.to_html(full_html=False)
+    hourly_price_plot = plot_html(hourly_price_fig)
     
-    # Define the file paths
-    file_paths = {
-        '2021': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2021_v395.csv'),
-        '2022': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2022_v396.csv'),
-        '2023': static_path('Pricing_Data', 'PUB_PriceHOEPPredispOR_2023_v393.csv')
-    }
-
     hourly_avg_all_years = []
     traces = []
 
-    for year, file_path in file_paths.items():
-        data = pd.read_csv(file_path, skiprows=2)
-        data.columns = ['Date', 'Hour', 'HOEP', 'Hour 1 Predispatch', 'Hour 2 Predispatch', 'Hour 3 Predispatch', 'OR 10 Min Sync', 'OR 10 Min non-sync', 'OR 30 Min']
-        data = data[['Date', 'Hour', 'HOEP']].dropna()
-        data = data[data['Hour'].apply(lambda x: x.isnumeric())]
-        data['Hour'] = data['Hour'].astype(int) - 1
-        data['HOEP'] = pd.to_numeric(data['HOEP'], errors='coerce').dropna()
-
+    for year in ('2021', '2022', '2023'):
+        data = load_hoep_data(year)
         hourly_avg = data.groupby('Hour')['HOEP'].mean().reset_index()
         hourly_avg_all_years.append(hourly_avg.set_index('Hour'))
 
@@ -1441,7 +1380,7 @@ def pricing():
 
     # Create figure and convert to HTML
     hourly_avg_price_fig = go.Figure(data=traces, layout=layout)
-    hourly_avg_price_plot = hourly_avg_price_fig.to_html(full_html=False)
+    hourly_avg_price_plot = plot_html(hourly_avg_price_fig)
     
     three_year_average = np.average(combined_hourly_avg)
     
