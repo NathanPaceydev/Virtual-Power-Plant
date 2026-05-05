@@ -30,6 +30,18 @@ HOEP_FILES = {
     '2022': 'PUB_PriceHOEPPredispOR_2022_v396.csv',
     '2023': 'PUB_PriceHOEPPredispOR_2023_v393.csv',
 }
+OPEN_METEO_CACHE = str(BASE_DIR / '.cache')
+OPEN_METEO_HOURLY_VARIABLES = [
+    "temperature_2m",
+    "relative_humidity_2m",
+    "surface_pressure",
+    "wind_speed_10m",
+    "wind_speed_100m",
+    "wind_direction_10m",
+    "wind_direction_100m",
+]
+OPEN_METEO_WIND_SPEED_10M_INDEX = 3
+OPEN_METEO_WIND_SPEED_100M_INDEX = 4
 
 API_KEY_NREL = os.getenv("NREL_API_KEY", "9iPekv2yf4nAi4py1XY2aHtG54udQ1DhYXKLXHnl")
 
@@ -626,7 +638,7 @@ def wind():
     turbine_height = session.get('turbineHeight', 'Not provided')
 
     # Setup the Open-Meteo API client with cache and retry on error
-    cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
+    cache_session = requests_cache.CachedSession(OPEN_METEO_CACHE, expire_after = -1)
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
 
@@ -638,9 +650,20 @@ def wind():
         "longitude": longitude,
         "start_date": "2022-01-01",
         "end_date": "2022-12-31",
-        "hourly": ["wind_speed_10m", "wind_speed_100m"]
+        # Keep this request shape aligned with the bundled .cache.sqlite file.
+        # The app only reads wind speed arrays below, but the wider variable list
+        # lets demo locations load from cache instead of spending Open-Meteo quota.
+        "hourly": OPEN_METEO_HOURLY_VARIABLES
     }
-    responses = openmeteo.weather_api(url, params=params)
+    try:
+        responses = openmeteo.weather_api(url, params=params)
+    except Exception as exc:
+        app.logger.warning("Open-Meteo wind data request failed: %s", exc)
+        return (
+            "Wind data is temporarily unavailable because the Open-Meteo daily request limit was reached. "
+            "Try again later, or use a previously cached demo location such as Waterloo, Canada.",
+            503,
+        )
 
     # Process first location. Add a for-loop for multiple locations or weather models
     response = responses[0]
@@ -648,8 +671,8 @@ def wind():
 
     # Process hourly data. The order of variables needs to be the same as requested.
     hourly = response.Hourly()
-    hourly_wind_speed_10m = hourly.Variables(0).ValuesAsNumpy()
-    hourly_wind_speed_100m = hourly.Variables(1).ValuesAsNumpy()
+    hourly_wind_speed_10m = hourly.Variables(OPEN_METEO_WIND_SPEED_10M_INDEX).ValuesAsNumpy()
+    hourly_wind_speed_100m = hourly.Variables(OPEN_METEO_WIND_SPEED_100M_INDEX).ValuesAsNumpy()
     
     hourly_data = {
         "date": pd.date_range(
