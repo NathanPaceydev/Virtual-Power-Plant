@@ -1,6 +1,7 @@
 # 🌱 Virtual Power Plant Toolkit
 
 A **Flask-based web app** for clean energy feasibility studies and project planning.
+## Live Site: https://virtual-power-plant.onrender.com/
 
 This toolkit helps users **design, price, and evaluate** clean energy generation projects—like solar, wind, and battery storage—based on location-specific data. It's built for **ease of use**, enabling anyone to quickly assess production potential and inform decisions on pricing and procurement.
 
@@ -29,7 +30,7 @@ This repo is configured for a free Flask web service on Render so anyone can ope
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/NathanPaceydev/Virtual-Power-Plant)
 
-### Render deployment https://virtual-power-plant.onrender.com/
+### Render deployment 
 
 The included `render.yaml` creates a free Python web service using only the `flask app` folder:
 
