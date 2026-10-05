@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<main style="max-width: 48rem; margin: 2rem auto; padding: 1rem;">
+    <h1>{{ title }}</h1>
+    <p>{{ message }}</p>
+    <p><a href="{{ url_for('home') }}">Return to the project form</a></p>
+</main>
+{% endblock %}

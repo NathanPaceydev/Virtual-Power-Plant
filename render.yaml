@@ -12,5 +12,7 @@ services:
         value: 3.11.11
       - key: SECRET_KEY
         generateValue: true
+      - key: NREL_API_KEY
+        sync: false
       - key: MALLOC_ARENA_MAX
         value: 2

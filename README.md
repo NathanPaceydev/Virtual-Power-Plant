@@ -32,11 +32,14 @@ From the repository root, install the Flask app dependencies and start the devel
 cd "flask app"
 uv venv --clear --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
+cp .env.example .env
+# Add your NLR Developer Network API key as NREL_API_KEY in .env before starting.
 source .venv/bin/activate
 python app.py
 ```
 
 Open http://127.0.0.1:5000. Stop the server with `Ctrl+C`.
+Keep `.env` private; it is excluded from Git. Get or rotate your API key at [NLR Developer Network](https://developer.nlr.gov/). For the Render service, add `NREL_API_KEY` in the service's Environment settings. The app now displays a helpful message if NLR or the location service cannot be reached.
 
 ## Live Demo Hosting
 

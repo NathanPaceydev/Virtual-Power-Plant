@@ -8,3 +8,5 @@ flask app/venv/
 .cache
 .cache.sqlite
 flask app/.cache.sqlite
+.env
+flask app/.env

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, Response
+from flask import Flask, render_template, request, redirect, url_for, session, Response, flash
 import requests
 import openmeteo_requests
 import calendar
@@ -18,12 +18,15 @@ from plotly.graph_objs import Scatter, Figure
 from plotly.subplots import make_subplots
 import glob
 import os
+import math
 from functools import lru_cache
 from pathlib import Path
+from dotenv import load_dotenv
 
 
 
 BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / '.env')
 STATIC_DIR = BASE_DIR / "static"
 HOEP_FILES = {
     '2021': 'PUB_PriceHOEPPredispOR_2021_v395.csv',
@@ -43,10 +46,17 @@ OPEN_METEO_HOURLY_VARIABLES = [
 OPEN_METEO_WIND_SPEED_10M_INDEX = 3
 OPEN_METEO_WIND_SPEED_100M_INDEX = 4
 
-API_KEY_NREL = os.getenv("NREL_API_KEY", "9iPekv2yf4nAi4py1XY2aHtG54udQ1DhYXKLXHnl")
-
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
+
+
+@app.errorhandler(500)
+def internal_server_error(_error):
+    return render_template(
+        'error.html',
+        title='Something went wrong',
+        message='The app hit an unexpected error. Please return to the form and try again.',
+    ), 500
 
 
 def static_path(*parts):
@@ -117,16 +127,14 @@ def healthz():
 
 
 def geocode_postal_code(postal_code, city="", country=""):
-    import requests
-
     url = "https://nominatim.openstreetmap.org/search"
     headers = {
-        "User-Agent": "flask-app-global-geocoder/1.0 (your@email.com)"
+        "User-Agent": "virtual-power-plant/1.0 (location lookup)"
     }
 
     def try_geocode(params):
         try:
-            response = requests.get(url, params=params, headers=headers)
+            response = requests.get(url, params=params, headers=headers, timeout=(4, 10))
             if response.status_code == 200:
                 results = response.json()
                 if results:
@@ -135,8 +143,8 @@ def geocode_postal_code(postal_code, city="", country=""):
                     location_string = results[0].get('display_name', 'Unknown')
                     print(f"✅ Geocoded to Latitude: {lat}, Longitude: {lon}, Location: {location_string}")
                     return lat, lon, location_string
-        except Exception as e:
-            print(f"❌ Exception during geocoding: {e}")
+        except requests.RequestException as exc:
+            app.logger.warning("Location lookup failed (%s)", type(exc).__name__)
         return None, None, "Unknown"
 
     # Try structured query first
@@ -172,6 +180,36 @@ def geocode_postal_code(postal_code, city="", country=""):
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
+        city = request.form.get('city', '').strip()
+        postal_code = request.form.get('postalCode', '').strip()
+        country = request.form.get('country', '').strip()
+        try:
+            surface_area = float(request.form.get('surfaceArea', ''))
+            tilt = float(request.form.get('tilt', '45'))
+        except (TypeError, ValueError):
+            flash('Enter a valid surface area and panel tilt.')
+            return redirect(url_for('home'))
+
+        if not city or not postal_code or not country:
+            flash('Enter a city, postal code, and country.')
+            return redirect(url_for('home'))
+        if not math.isfinite(surface_area) or not 0.1 <= surface_area <= 1_000_000:
+            flash('Surface area must be between 0.1 and 1,000,000 m².')
+            return redirect(url_for('home'))
+        if not math.isfinite(tilt) or not 0 <= tilt <= 90:
+            flash('Panel tilt must be between 0 and 90 degrees.')
+            return redirect(url_for('home'))
+        if request.form.get('arrayType') not in {'0', '1', '2', '3', '4'}:
+            flash('Choose a valid solar array type.')
+            return redirect(url_for('home'))
+        if request.form.get('moduleType') not in {'0', '1', '2'}:
+            flash('Choose a valid solar module type.')
+            return redirect(url_for('home'))
+        module_efficiency = {'0': 21.7, '1': 22.26, '2': 19.3}[request.form['moduleType']]
+        if surface_area * module_efficiency / 100 < 0.05:
+            flash('This surface area produces a system below PVWatts’ 0.05 kW minimum. Increase the area.')
+            return redirect(url_for('home'))
+
         session['has_submitted_project'] = True
 
         # Reset the necessary session variables to zero
@@ -185,9 +223,7 @@ def home():
             session.pop(key, None)
             
         # Store existing form data in session
-        session['surface_area'] = request.form.get('surfaceArea')
-        if session['surface_area'] == '':
-            session['surface_area'] = 0
+        session['surface_area'] = surface_area
 
         # Clean up messy input like "Canada, Kentucky, USA"
         raw_country = request.form.get('country', '').strip()
@@ -201,12 +237,12 @@ def home():
         session['country'] = clean_country
 
         
-        session['city'] = request.form.get('city', '').strip()
-        session['postal_code'] = request.form.get('postalCode', '').strip()
+        session['city'] = city
+        session['postal_code'] = postal_code
         
         session['array_type'] = request.form.get('arrayType')
         session['module_type'] = request.form.get('moduleType')
-        session['tilt'] = request.form.get('tilt')
+        session['tilt'] = tilt
 
         # Store the new input for the number of wind turbines
         session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
@@ -250,8 +286,6 @@ def location():
 
 @app.route('/solar', methods=['GET', 'POST'])
 def solar():
-    print("✅ Flask route /solar was reached")
-
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
     
@@ -261,10 +295,21 @@ def solar():
     country = session.get('country', '')
     postal_code = session.get('postal_code', '')
 
-    lat, lon, location_string = geocode_postal_code(postal_code, city, country)
+    api_key = os.getenv("NREL_API_KEY", "").strip()
+    if not api_key:
+        return render_template(
+            'error.html',
+            title='Solar data setup needed',
+            message='Solar estimates need an NREL API key. Add NREL_API_KEY to your local .env file, then restart the app.',
+        ), 503
 
-    # print this out to the user in the terminal
-    print(f"Geocoded {postal_code} to Latitude: {lat}, Longitude: {lon}, Location: {location_string}")
+    lat, lon, location_string = geocode_postal_code(postal_code, city, country)
+    if lat is None or lon is None:
+        return render_template(
+            'error.html',
+            title='Location lookup unavailable',
+            message='The location could not be resolved. Check the city, postal code, and country, and confirm this computer can reach OpenStreetMap.',
+        ), 503
     
     array_type_num = session.get('array_type', 'Not provided')
     module_type_num = session.get('module_type', 'Not provided')
@@ -273,7 +318,7 @@ def solar():
 
     
     array_types = {
-        '0': 'Fixed Carport',
+        '0': 'Fixed - Open Rack',
         '1': 'Fixed - Roof Mounted',
         '2': '1-Axis Tracking',
         '3': '1-Axis Backtracking',
@@ -312,11 +357,12 @@ def solar():
     
 
     # Define the URL for the PVWatts V8 API
-    url = "https://developer.nrel.gov/api/pvwatts/v8.json"
+    # NLR retired developer.nrel.gov on 2026-05-29; use the current API host.
+    url = "https://developer.nlr.gov/api/pvwatts/v8.json"
 
     # Specify the parameters for the API request
     params = {
-        "api_key": API_KEY_NREL,
+        "api_key": api_key,
         "azimuth": 180,
         "system_capacity": system_capacity_kW,
         "losses": 14.0,
@@ -334,7 +380,43 @@ def solar():
     }
 
     # Make the GET request to the PVWatts API
-    response = requests.get(url, params=params)
+    try:
+        response = requests.get(url, params=params, timeout=(5, 25))
+        response.raise_for_status()
+        data = response.json()
+        outputs = data.get('outputs', {})
+        required_outputs = {'ac', 'dc', 'ac_monthly', 'poa_monthly', 'solrad_monthly', 'dc_monthly', 'tcell', 'tamb'}
+        if not required_outputs.issubset(outputs):
+            raise ValueError('PVWatts response is missing required output fields')
+        station_info = data['station_info']
+    except requests.Timeout:
+        app.logger.warning("NREL PVWatts request timed out")
+        return render_template(
+            'error.html',
+            title='Solar service timed out',
+            message='NREL did not respond in time. Check your internet connection and try again.',
+        ), 503
+    except requests.ConnectionError:
+        app.logger.warning("NREL PVWatts could not be reached")
+        return render_template(
+            'error.html',
+            title='Solar service unreachable',
+            message='This computer cannot reach NREL PVWatts right now. Check your network or DNS settings and try again.',
+        ), 503
+    except requests.HTTPError:
+        app.logger.warning("NREL PVWatts returned HTTP %s", response.status_code)
+        return render_template(
+            'error.html',
+            title='Solar estimate unavailable',
+            message='NREL PVWatts rejected or could not process this request. Check the location and solar inputs, then try again.',
+        ), 502
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        app.logger.warning("NREL PVWatts returned an invalid response")
+        return render_template(
+            'error.html',
+            title='Solar estimate unavailable',
+            message='NREL returned data the app could not use. Please try again later.',
+        ), 502
     
     
     # Default values for variables
@@ -350,14 +432,10 @@ def solar():
     latitude = longitude = elivation = distance_from_site = 'Not available'
     total_dc_yearly = total_ac_yearly = 0
 
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Parse the JSON response
-        data = response.json()
-
-        # Display outputs
-        ac_hourly = data['outputs']['ac']
-        dc_hourly = data['outputs']['dc']
+    # Use the validated PVWatts response.
+    if data:
+        ac_hourly = outputs['ac']
+        dc_hourly = outputs['dc']
         # Assuming ac_hourly contains 24 hours of data for a single day
         hours = [i for i in range(len(ac_hourly))]
 
@@ -365,13 +443,12 @@ def solar():
         # For example, if ac_hourly represents a week of hourly data (24*7=168 hours)
         day_time_hours = [f"Day {i//24 + 1}, Hour {i%24}" for i in range(len(ac_hourly))]
 
-        ac_monthly = data["outputs"]["ac_monthly"]
-        poa_monthly = data["outputs"]["poa_monthly"]
-        solrad_monthly = data["outputs"]["solrad_monthly"]
-        dc_monthly = data["outputs"]["dc_monthly"]
-        temp_cell_monthly = data["outputs"]["tcell"]
-        temp_ambient_monthly = data["outputs"]["tamb"]
-        station_info = data['station_info']
+        ac_monthly = outputs["ac_monthly"]
+        poa_monthly = outputs["poa_monthly"]
+        solrad_monthly = outputs["solrad_monthly"]
+        dc_monthly = outputs["dc_monthly"]
+        temp_cell_monthly = outputs["tcell"]
+        temp_ambient_monthly = outputs["tamb"]
         
         
         elivation = station_info['elev'] #[m]
@@ -386,11 +463,6 @@ def solar():
 
         total_dc_yearly = np.sum(dc_monthly) #[kWh DC]
         total_ac_yearly = np.sum(ac_monthly) #[kWh AC]
-    else:
-        # Error
-        print(f"Error: Received status code {response.status_code}")
-        print(response.text)  # This might provide more details on the error
-        
     # Sample data
     months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
@@ -1524,4 +1596,4 @@ def summary():
     )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.getenv('FLASK_DEBUG') == '1')
