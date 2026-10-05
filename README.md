@@ -24,6 +24,20 @@ Want to see it in action?
 
 [![Watch the video](https://img.youtube.com/vi/x4Zi4jsRHSM/0.jpg)](https://www.youtube.com/watch?v=x4Zi4jsRHSM)
 
+### Run locally
+
+From the repository root, install the Flask app dependencies and start the development server:
+
+```bash
+cd "flask app"
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+Open http://127.0.0.1:5000. Stop the server with `Ctrl+C`.
+
 ## Live Demo Hosting
 
 This repo is configured for a free Flask web service on Render so anyone can open a public demo URL without cloning the project.
