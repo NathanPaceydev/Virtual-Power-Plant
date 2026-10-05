@@ -19,9 +19,16 @@ from plotly.subplots import make_subplots
 import glob
 import os
 import math
+import hashlib
+import secrets
+import sqlite3
+import time
+import base64
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from dotenv import load_dotenv
+from cryptography.fernet import Fernet, InvalidToken
 
 
 
@@ -47,7 +54,127 @@ OPEN_METEO_WIND_SPEED_10M_INDEX = 3
 OPEN_METEO_WIND_SPEED_100M_INDEX = 4
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", os.urandom(24))
+
+
+def load_or_create_secret_key():
+    configured_secret = os.getenv("SECRET_KEY")
+    if configured_secret:
+        return configured_secret
+
+    # Render supplies SECRET_KEY. For local use, keep a stable secret outside Git
+    # so encrypted browser-key records remain readable after app restarts.
+    secret_path = BASE_DIR / '.app_secret_key'
+    try:
+        secret_path.touch(mode=0o600, exist_ok=True)
+        os.chmod(secret_path, 0o600)
+        secret = secret_path.read_text().strip()
+        if not secret:
+            secret = secrets.token_urlsafe(48)
+            secret_path.write_text(secret)
+            os.chmod(secret_path, 0o600)
+        return secret
+    except OSError as exc:
+        raise RuntimeError('Set SECRET_KEY or allow the app to create a private local secret file.') from exc
+
+
+app.secret_key = load_or_create_secret_key()
+app.permanent_session_lifetime = 60 * 60 * 24 * 30
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=bool(os.getenv('RENDER')),
+)
+NLR_KEY_CACHE = BASE_DIR / '.nrel_api_key_cache.sqlite'
+NLR_KEY_CACHE_TTL = 60 * 60 * 24 * 30
+
+
+def _key_cipher():
+    secret_bytes = app.secret_key.encode() if isinstance(app.secret_key, str) else app.secret_key
+    derived_key = hashlib.sha256(b'virtual-power-plant-nlr-key-cache:' + secret_bytes).digest()
+    return Fernet(base64.urlsafe_b64encode(derived_key))
+
+
+def _key_cache_db():
+    connection = sqlite3.connect(NLR_KEY_CACHE, timeout=5)
+    os.chmod(NLR_KEY_CACHE, 0o600)
+    connection.execute(
+        'CREATE TABLE IF NOT EXISTS browser_keys '
+        '(browser_id TEXT PRIMARY KEY, encrypted_key BLOB NOT NULL, expires_at INTEGER NOT NULL)'
+    )
+    connection.execute('DELETE FROM browser_keys WHERE expires_at <= ?', (int(time.time()),))
+    return connection
+
+
+@contextmanager
+def _key_cache():
+    connection = _key_cache_db()
+    try:
+        yield connection
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _browser_key_id(create=False):
+    browser_id = session.get('nrel_browser_id')
+    if not browser_id and create:
+        browser_id = secrets.token_urlsafe(32)
+        session['nrel_browser_id'] = browser_id
+    return hashlib.sha256(browser_id.encode()).hexdigest() if browser_id else None
+
+
+def save_nlr_api_key(api_key):
+    browser_id = _browser_key_id(create=True)
+    encrypted_key = _key_cipher().encrypt(api_key.encode())
+    with _key_cache() as connection:
+        connection.execute(
+            'INSERT INTO browser_keys (browser_id, encrypted_key, expires_at) VALUES (?, ?, ?) '
+            'ON CONFLICT(browser_id) DO UPDATE SET encrypted_key=excluded.encrypted_key, expires_at=excluded.expires_at',
+            (browser_id, encrypted_key, int(time.time()) + NLR_KEY_CACHE_TTL),
+        )
+    os.chmod(NLR_KEY_CACHE, 0o600)
+
+
+def get_nlr_api_key():
+    browser_id = _browser_key_id()
+    if not browser_id:
+        return None
+    with _key_cache() as connection:
+        row = connection.execute(
+            'SELECT encrypted_key FROM browser_keys WHERE browser_id=? AND expires_at>? ',
+            (browser_id, int(time.time())),
+        ).fetchone()
+        if row:
+            connection.execute(
+                'UPDATE browser_keys SET expires_at=? WHERE browser_id=?',
+                (int(time.time()) + NLR_KEY_CACHE_TTL, browser_id),
+            )
+    if not row:
+        return None
+    try:
+        return _key_cipher().decrypt(row[0]).decode()
+    except (InvalidToken, UnicodeDecodeError):
+        forget_nlr_api_key()
+        return None
+
+
+def forget_nlr_api_key():
+    browser_id = _browser_key_id()
+    if browser_id:
+        with _key_cache() as connection:
+            connection.execute('DELETE FROM browser_keys WHERE browser_id=?', (browser_id,))
+
+
+def csrf_token():
+    token = session.get('csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['csrf_token'] = token
+    return token
+
+
+def csrf_is_valid():
+    return secrets.compare_digest(session.get('csrf_token', ''), request.form.get('csrf_token', ''))
 
 
 @app.errorhandler(500)
@@ -180,6 +307,24 @@ def geocode_postal_code(postal_code, city="", country=""):
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
+        session.permanent = True
+        if not csrf_is_valid():
+            flash('Your form expired. Please try again.')
+            return redirect(url_for('home'))
+
+        submitted_api_key = request.form.get('nrelApiKey', '').strip()
+        if submitted_api_key:
+            try:
+                save_nlr_api_key(submitted_api_key)
+            except (OSError, sqlite3.Error, RuntimeError):
+                app.logger.exception('Could not save the browser NLR API key')
+                flash('The API key could not be saved. Please check the app storage and try again.')
+                return redirect(url_for('home'))
+
+        if not get_nlr_api_key():
+            flash('Enter your NLR API key to run solar estimates, or create one using the link below.')
+            return redirect(url_for('home'))
+
         city = request.form.get('city', '').strip()
         postal_code = request.form.get('postalCode', '').strip()
         country = request.form.get('country', '').strip()
@@ -260,7 +405,11 @@ def home():
         # Redirect to the solar page
         return redirect(url_for('solar'))
 
-    return render_template('home.html')
+    return render_template(
+        'home.html',
+        csrf_token=csrf_token(),
+        has_saved_nlr_key=bool(get_nlr_api_key()),
+    )
 
 @app.route('/location', methods=['GET','POST'])
 def location():
@@ -282,6 +431,16 @@ def location():
     return render_template('location.html', **context)
 
 
+@app.route('/forget-api-key', methods=['POST'])
+def forget_api_key():
+    if not csrf_is_valid():
+        flash('Your form expired. Please try again.')
+        return redirect(url_for('home'))
+    forget_nlr_api_key()
+    flash('Your saved NLR API key has been removed from this browser.')
+    return redirect(url_for('home'))
+
+
 
 
 @app.route('/solar', methods=['GET', 'POST'])
@@ -295,13 +454,10 @@ def solar():
     country = session.get('country', '')
     postal_code = session.get('postal_code', '')
 
-    api_key = os.getenv("NREL_API_KEY", "").strip()
+    api_key = get_nlr_api_key()
     if not api_key:
-        return render_template(
-            'error.html',
-            title='Solar data setup needed',
-            message='Solar estimates need an NREL API key. Add NREL_API_KEY to your local .env file, then restart the app.',
-        ), 503
+        flash('Enter an NLR API key on the home page before running a solar estimate.')
+        return redirect(url_for('home'))
 
     lat, lon, location_string = geocode_postal_code(postal_code, city, country)
     if lat is None or lon is None:
@@ -362,7 +518,6 @@ def solar():
 
     # Specify the parameters for the API request
     params = {
-        "api_key": api_key,
         "azimuth": 180,
         "system_capacity": system_capacity_kW,
         "losses": 14.0,
@@ -381,7 +536,7 @@ def solar():
 
     # Make the GET request to the PVWatts API
     try:
-        response = requests.get(url, params=params, timeout=(5, 25))
+        response = requests.get(url, params=params, headers={"X-Api-Key": api_key}, timeout=(5, 25))
         response.raise_for_status()
         data = response.json()
         outputs = data.get('outputs', {})
@@ -405,10 +560,16 @@ def solar():
         ), 503
     except requests.HTTPError:
         app.logger.warning("NREL PVWatts returned HTTP %s", response.status_code)
+        if response.status_code in (401, 403):
+            forget_nlr_api_key()
         return render_template(
             'error.html',
             title='Solar estimate unavailable',
-            message='NREL PVWatts rejected or could not process this request. Check the location and solar inputs, then try again.',
+            message=(
+                'NLR rejected this API key. It has been removed from this browser; enter a valid key on the home page and try again.'
+                if response.status_code in (401, 403)
+                else 'NLR PVWatts could not process this request. Check the location and solar inputs, then try again.'
+            ),
         ), 502
     except (requests.RequestException, ValueError, KeyError, TypeError):
         app.logger.warning("NREL PVWatts returned an invalid response")

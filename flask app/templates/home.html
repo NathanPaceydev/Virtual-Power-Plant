@@ -91,6 +91,16 @@
     <h1>Virtual Power Plant Toolkit</h1>
 
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <h3>NLR API Key</h3>
+        {% if has_saved_nlr_key %}
+            <p>A key is saved securely for this browser. Leave this blank to keep using it.</p>
+        {% else %}
+            <p>Enter your NLR API key to use PVWatts. <a href="https://developer.nlr.gov/signup/" target="_blank" rel="noopener">Create a free key at the NLR Developer Network</a>, then return here and paste it below.</p>
+        {% endif %}
+        <label for="nrelApiKey">NLR API key:</label>
+        <input type="password" id="nrelApiKey" name="nrelApiKey" autocomplete="new-password" spellcheck="false" placeholder="Paste your API key">
+        <br><br>
         <h3>Location</h3>
         <label for="city">City:</label>
         <input type="text" id="city" name="city" placeholder="e.g., Waterloo" required>
@@ -163,6 +173,12 @@
         <br><br>
         <input type="submit" value="Submit">
     </form>
+    {% if has_saved_nlr_key %}
+        <form method="post" action="{{ url_for('forget_api_key') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">Forget saved API key</button>
+        </form>
+    {% endif %}
     
     <script>
         document.getElementById("battery").addEventListener("change", function() {

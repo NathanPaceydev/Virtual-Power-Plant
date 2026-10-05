@@ -33,13 +33,11 @@ cd "flask app"
 uv venv --clear --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 cp .env.example .env
-# Add your NLR Developer Network API key as NREL_API_KEY in .env before starting.
 source .venv/bin/activate
 python app.py
 ```
 
-Open http://127.0.0.1:5000. Stop the server with `Ctrl+C`.
-Keep `.env` private; it is excluded from Git. Get or rotate your API key at [NLR Developer Network](https://developer.nlr.gov/). For the Render service, add `NREL_API_KEY` in the service's Environment settings. The app now displays a helpful message if NLR or the location service cannot be reached.
+Open http://127.0.0.1:5000. Stop the server with `Ctrl+C`. On the home page, enter your own API key from the [NLR Developer Network](https://developer.nlr.gov/signup/). The app encrypts it in a local cache tied to that browser and keeps it for up to 30 days of inactivity; leaving the field blank reuses the saved key. Use **Forget saved API key** to remove it. On Render, the cache lives on the free service's temporary filesystem and can be cleared when the service restarts or redeploys, so users may need to enter their key again. API keys are sent to PVWatts in an HTTP header rather than in the request URL.
 
 ## Live Demo Hosting
 

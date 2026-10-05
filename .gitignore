@@ -10,3 +10,5 @@ flask app/venv/
 flask app/.cache.sqlite
 .env
 flask app/.env
+flask app/.app_secret_key
+flask app/.nrel_api_key_cache.sqlite*

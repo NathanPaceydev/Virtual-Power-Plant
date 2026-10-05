@@ -1,5 +1,6 @@
 Flask>=3.0,<4
 python-dotenv>=1.0,<2
+cryptography>=42,<46
 gunicorn>=23.0,<24
 requests>=2.31,<3
 openmeteo-requests>=1.3,<2
