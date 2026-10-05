@@ -30,9 +30,9 @@ From the repository root, install the Flask app dependencies and start the devel
 
 ```bash
 cd "flask app"
-python3.11 -m venv .venv
+uv venv --clear --python 3.11.11 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
 source .venv/bin/activate
-pip install -r requirements.txt
 python app.py
 ```
 
