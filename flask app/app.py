@@ -321,89 +321,149 @@ def home():
                 flash('The API key could not be saved. Please check the app storage and try again.')
                 return redirect(url_for('home'))
 
-        if not get_nlr_api_key():
-            flash('Enter your NLR API key to run solar estimates, or create one using the link below.')
-            return redirect(url_for('home'))
-
         city = request.form.get('city', '').strip()
         postal_code = request.form.get('postalCode', '').strip()
-        country = request.form.get('country', '').strip()
+        raw_country = request.form.get('country', '').strip()
+        country_parts = [part.strip() for part in raw_country.split(',')]
+        clean_country = country_parts[-1] if country_parts else raw_country
+
+        surface_area_input = request.form.get('surfaceArea', '').strip()
+        turbines_input = request.form.get('numTurbines', '').strip()
+        has_solar = bool(surface_area_input)
+        has_wind = bool(turbines_input)
+        has_battery = request.form.get('battery') == 'Battery_bool'
+
+        if not any((has_solar, has_wind, has_battery)):
+            flash('Choose at least one system: enter a solar surface area, enter the number of wind turbines, or include battery storage.')
+            return redirect(url_for('home'))
+
         try:
-            surface_area = float(request.form.get('surfaceArea', ''))
+            surface_area = float(surface_area_input) if has_solar else None
             tilt = float(request.form.get('tilt', '45'))
         except (TypeError, ValueError):
             flash('Enter a valid surface area and panel tilt.')
             return redirect(url_for('home'))
 
-        if not city or not postal_code or not country:
-            flash('Enter a city, postal code, and country.')
+        if (has_solar or has_wind) and not city:
+            flash('Enter a city for solar or wind estimates.')
             return redirect(url_for('home'))
-        if not math.isfinite(surface_area) or not 0.1 <= surface_area <= 1_000_000:
+        if (has_solar or has_wind) and not postal_code:
+            flash('Enter a postal code for solar or wind estimates.')
+            return redirect(url_for('home'))
+        if (has_solar or has_wind) and not clean_country:
+            flash('Enter a country for solar or wind estimates.')
+            return redirect(url_for('home'))
+
+        if has_solar and (not math.isfinite(surface_area) or not 0.1 <= surface_area <= 1_000_000):
             flash('Surface area must be between 0.1 and 1,000,000 m².')
             return redirect(url_for('home'))
-        if not math.isfinite(tilt) or not 0 <= tilt <= 90:
+        if has_solar and not math.isfinite(tilt):
+            flash('Enter a valid panel tilt.')
+            return redirect(url_for('home'))
+        if has_solar and not 0 <= tilt <= 90:
             flash('Panel tilt must be between 0 and 90 degrees.')
             return redirect(url_for('home'))
-        if request.form.get('arrayType') not in {'0', '1', '2', '3', '4'}:
+        array_type = request.form.get('arrayType', '0')
+        module_type = request.form.get('moduleType', '0')
+        if has_solar and array_type not in {'0', '1', '2', '3', '4'}:
             flash('Choose a valid solar array type.')
             return redirect(url_for('home'))
-        if request.form.get('moduleType') not in {'0', '1', '2'}:
+        if has_solar and module_type not in {'0', '1', '2'}:
             flash('Choose a valid solar module type.')
             return redirect(url_for('home'))
-        module_efficiency = {'0': 21.7, '1': 22.26, '2': 19.3}[request.form['moduleType']]
-        if surface_area * module_efficiency / 100 < 0.05:
+        module_efficiency = {'0': 21.7, '1': 22.26, '2': 19.3}.get(module_type, 21.7)
+        if has_solar and surface_area * module_efficiency / 100 < 0.05:
             flash('This surface area produces a system below PVWatts’ 0.05 kW minimum. Increase the area.')
             return redirect(url_for('home'))
 
+        if has_solar and not get_nlr_api_key():
+            flash('Enter your NLR API key to run solar estimates, or create one using the link above.')
+            return redirect(url_for('home'))
+
+        try:
+            num_turbines = int(turbines_input) if has_wind else 0
+            turbine_height = int(request.form.get('turbineHeight', '18')) if has_wind else 0
+        except (TypeError, ValueError):
+            flash('Enter a valid number of wind turbines and choose a turbine height.')
+            return redirect(url_for('home'))
+        if has_wind and num_turbines < 1:
+            flash('Enter at least one wind turbine.')
+            return redirect(url_for('home'))
+        if has_wind and turbine_height not in {18, 24, 30, 36}:
+            flash('Choose a valid turbine height.')
+            return redirect(url_for('home'))
+
+        battery_consumption = battery_runtime = 0
+        battery_final_percent = 50
+        battery_max_cycles = 100000
+        if has_battery:
+            try:
+                battery_consumption = float(request.form.get('hourlyDemand', ''))
+                battery_runtime = float(request.form.get('runtime', ''))
+                if request.form.get('finalPercentage', '').strip():
+                    battery_final_percent = float(request.form['finalPercentage'])
+                if request.form.get('maxCycles', '').strip():
+                    battery_max_cycles = int(request.form['maxCycles'])
+            except (TypeError, ValueError):
+                flash('Enter a valid battery demand and runtime. Advanced values may be left blank.')
+                return redirect(url_for('home'))
+            if (not math.isfinite(battery_consumption) or battery_consumption <= 0
+                    or not math.isfinite(battery_runtime) or battery_runtime <= 0):
+                flash('Battery hourly demand and runtime must both be greater than zero.')
+                return redirect(url_for('home'))
+            if not 1 <= battery_final_percent <= 100 or battery_max_cycles < 1:
+                flash('Battery final capacity must be 1–100% and maximum cycles must be positive.')
+                return redirect(url_for('home'))
+
+        wind_location = None
+        if has_wind and not has_solar:
+            wind_location = geocode_postal_code(postal_code, city, clean_country)
+            if wind_location[0] is None or wind_location[1] is None:
+                flash('The location could not be resolved. Check the city, postal code, and country, then try again.')
+                return redirect(url_for('home'))
+
         session['has_submitted_project'] = True
-
-        # Reset the necessary session variables to zero
-        session_keys = ['surface_area', 'country', 'postal_code', 'array_type', 'module_type', 'tilt',
-                        'num_turbines', 'turbineHeight', 'battery_consumption',
-                        'battery_runtime', 'battery_final_percent', 'battery_max_cycles']
-        for key in session_keys:
-            session[key] = 0  # Resetting each to zero
-            
-        for key in [ 'wind_visited', 'battery_visited']:
+        session['has_solar'] = has_solar
+        session['has_wind'] = has_wind
+        session['has_battery'] = has_battery
+        for key in ['wind_visited', 'battery_visited']:
             session.pop(key, None)
-            
-        # Store existing form data in session
-        session['surface_area'] = surface_area
+        # Clear calculations from a previous project in this browser.
+        for key in [
+            'solar_pannel_cost', 'solar_mount_cost', 'solar_total_cost', 'solar_project_revenue',
+            'solar_project_payback_period', 'solar_project_roi', 'solar_project_profit',
+            'wind_upfront_cost', 'wind_project_revenue', 'wind_project_payback_period',
+            'wind_project_roi', 'wind_project_profit', 'battery_upfront_cost',
+            'battery_project_revenue', 'battery_project_profit', 'latitude', 'longitude',
+            'location', 'elivation', 'distance',
+        ]:
+            session.pop(key, None)
 
-        # Clean up messy input like "Canada, Kentucky, USA"
-        raw_country = request.form.get('country', '').strip()
-
-        country_parts = [part.strip() for part in raw_country.split(',')]
-        if country_parts:
-            clean_country = country_parts[-1]  # Take the last part
-        else:
-            clean_country = raw_country
-
+        session['surface_area'] = surface_area if has_solar else 0
         session['country'] = clean_country
-
-        
         session['city'] = city
         session['postal_code'] = postal_code
-        
-        session['array_type'] = request.form.get('arrayType')
-        session['module_type'] = request.form.get('moduleType')
+        session['array_type'] = array_type
+        session['module_type'] = module_type
         session['tilt'] = tilt
+        session['num_turbines'] = num_turbines
+        session['turbineHeight'] = turbine_height
+        session['battery_consumption'] = battery_consumption
+        session['battery_runtime'] = battery_runtime
+        session['battery_final_percent'] = battery_final_percent
+        session['battery_max_cycles'] = battery_max_cycles
 
-        # Store the new input for the number of wind turbines
-        session['num_turbines'] = request.form.get('numTurbines', type=int) or 0
-        session['turbineHeight'] = request.form.get('turbineHeight', type=int)
-        
-        # battery consumption
-        session['battery_consumption'] = request.form.get('hourlyDemand', type=int)
-        session['battery_runtime'] = request.form.get('runtime', type=int)
-        session['battery_final_percent'] = request.form.get('finalPercentage', type=int)
-        session['battery_max_cycles'] = request.form.get('maxCycles', type=int)
-        
-        # buyback price
-        #session['buyback_price'] = request.form.get('buybackPrice', type=float)
-        
-        # Redirect to the solar page
-        return redirect(url_for('solar'))
+        # Wind-only projects do not visit the solar page to resolve the site.
+        if wind_location:
+            session['latitude'], session['longitude'], session['location'] = wind_location
+
+        if has_solar:
+            next_page = 'solar'
+        elif has_wind:
+            next_page = 'wind'
+        else:
+            next_page = 'battery'
+        return redirect(url_for(next_page))
 
     return render_template(
         'home.html',
@@ -445,6 +505,10 @@ def forget_api_key():
 
 @app.route('/solar', methods=['GET', 'POST'])
 def solar():
+    if not session.get('has_solar'):
+        flash('This project does not include solar. Add a solar surface area on the project form first.')
+        return redirect(url_for('home'))
+
     # Retrieve form data from session
     surface_area = session.get('surface_area', 'Not provided')
     
@@ -864,6 +928,10 @@ def contact():
 
 @app.route('/wind', methods=['GET', 'POST'])
 def wind():
+    if not session.get('has_wind'):
+        flash('This project does not include wind. Add at least one turbine on the project form first.')
+        return redirect(url_for('home'))
+
     # fetch user input
     # Retrieve latitude and longitude from session
     latitude = session.get('latitude', 'Not provided')
@@ -1307,6 +1375,10 @@ def wind():
 
 @app.route('/battery', methods=['GET','POST'])
 def battery():
+    if not session.get('has_battery'):
+        flash('This project does not include battery storage. Select it on the project form first.')
+        return redirect(url_for('home'))
+
     battery_consumption = session.get('battery_consumption', 'Not provided') or 0
     battery_runtime = session.get('battery_runtime', 'Not provided') or 0
     

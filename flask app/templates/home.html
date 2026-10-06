@@ -89,6 +89,7 @@
     </style>
 
     <h1>Virtual Power Plant Toolkit</h1>
+    <p>Choose any combination of systems. Enter a solar surface area for solar, a turbine count for wind, and select battery storage for a battery estimate. Location is required only for solar or wind.</p>
 
     <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -96,26 +97,26 @@
         {% if has_saved_nlr_key %}
             <p>A key is saved securely for this browser. Leave this blank to keep using it.</p>
         {% else %}
-            <p>Enter your NLR API key to use PVWatts. <a href="https://developer.nlr.gov/signup/" target="_blank" rel="noopener">Create a free key at the NLR Developer Network</a>, then return here and paste it below.</p>
+            <p>An NLR API key is only needed when you include solar. <a href="https://developer.nlr.gov/signup/" target="_blank" rel="noopener">Create a free key at the NLR Developer Network</a>, then return here and paste it below.</p>
         {% endif %}
         <label for="nrelApiKey">NLR API key:</label>
         <input type="password" id="nrelApiKey" name="nrelApiKey" autocomplete="new-password" spellcheck="false" placeholder="Paste your API key">
         <br><br>
         <h3>Location</h3>
         <label for="city">City:</label>
-        <input type="text" id="city" name="city" placeholder="e.g., Waterloo" required>
+        <input type="text" id="city" name="city" placeholder="e.g., Waterloo">
         <br><br>
         <label for="postalCode">Postal Code:</label>
-        <input type="text" id="postalCode" name="postalCode" required>
+        <input type="text" id="postalCode" name="postalCode">
         <br><br>
         <label for="country">Country:</label>
-        <input type="text" id="country" name="country" placeholder="e.g., Canada" required>
+        <input type="text" id="country" name="country" placeholder="e.g., Canada">
         <br><br>
     
 
         <h3>Solar Inputs</h3>
         <label for="surfaceArea">Surface Area (m<sup>2</sup>):</label>
-        <input type="number" id="surfaceArea" name="surfaceArea" min="0.1" max="1000000" step="any" required><br><br>
+        <input type="number" id="surfaceArea" name="surfaceArea" min="0.1" max="1000000" step="any" placeholder="Leave blank to skip solar"><br><br>
     
         
         <label for="arrayType">Array Type:</label>
@@ -139,6 +140,7 @@
         <output>45</output><br><br>
     
         <h3>Wind Inputs</h3>
+        <p>Leave the turbine count blank to skip wind.</p>
         <label for="numTurbines">Number of Wind Turbines:</label>
         <input type="number" id="numTurbines" name="numTurbines" min="1" step="1">
         <br><br>
@@ -206,6 +208,9 @@
                 hourlyDemandInput.id = "hourlyDemand";
                 hourlyDemandInput.name = "hourlyDemand";
                 hourlyDemandInput.placeholder = "Hourly Demand (kW)";
+                hourlyDemandInput.min = "0.01";
+                hourlyDemandInput.step = "any";
+                hourlyDemandInput.required = true;
                 hourlyDemandContainer.appendChild(hourlyDemandInput);
         
                 // Runtime Label
@@ -220,6 +225,9 @@
                 runtimeInput.id = "runtime";
                 runtimeInput.name = "runtime";
                 runtimeInput.placeholder = "Number of Hours";
+                runtimeInput.min = "1";
+                runtimeInput.step = "any";
+                runtimeInput.required = true;
                 runtimeContainer.appendChild(runtimeInput);
         
                 // Advanced Parameters Disclaimer Text
@@ -258,6 +266,17 @@
                 advancedParametersInputContainer.appendChild(maxCyclesInput);
             }
         });
+
+        const surfaceAreaInput = document.getElementById("surfaceArea");
+        const turbineCountInput = document.getElementById("numTurbines");
+        const locationInputs = ["city", "postalCode", "country"].map(id => document.getElementById(id));
+        function updateLocationRequirements() {
+            const locationRequired = surfaceAreaInput.value.trim() !== "" || turbineCountInput.value.trim() !== "";
+            locationInputs.forEach(input => input.required = locationRequired);
+        }
+        surfaceAreaInput.addEventListener("input", updateLocationRequirements);
+        turbineCountInput.addEventListener("input", updateLocationRequirements);
+        updateLocationRequirements();
     </script>
 
     <br><br><br><br>
